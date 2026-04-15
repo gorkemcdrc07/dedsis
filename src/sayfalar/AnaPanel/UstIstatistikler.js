@@ -4,12 +4,12 @@ export default function UstIstatistikler({ stats }) {
     return (
         <div className="stats-bar">
             <div className="stat-cell">
-                <div className="stat-lbl">Toplam Alýþ</div>
+                <div className="stat-lbl">Toplam AlÄ±ÅŸ</div>
                 <div className="stat-val">{paraBicimlendir(stats.purchase, true)}</div>
             </div>
 
             <div className="stat-cell">
-                <div className="stat-lbl">Toplam Satýþ</div>
+                <div className="stat-lbl">Toplam SatÄ±ÅŸ</div>
                 <div className="stat-val">{paraBicimlendir(stats.sales, true)}</div>
             </div>
 

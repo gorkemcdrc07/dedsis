@@ -55,7 +55,7 @@ export default function HizmetDagilimi({ details = [], onPlateClick }) {
         <div className="xp-inner">
             <div className="f-row" style={{ marginBottom: 12 }}>
                 <select className="f-sel" value={seciliHizmet} onChange={(e) => setSeciliHizmet(e.target.value)}>
-                    <option value="">Tüm hizmetler</option>
+                    <option value="">TÃ¼m hizmetler</option>
                     {hizmetSecenekleri.map((o) => (
                         <option key={o} value={o}>
                             {o}
@@ -79,9 +79,9 @@ export default function HizmetDagilimi({ details = [], onPlateClick }) {
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>ÝSÝM</th>
-                                        <th className="r">ALIÞ</th>
-                                        <th className="r">SATIÞ</th>
+                                        <th>Ä°SÄ°M</th>
+                                        <th className="r">ALIÅž</th>
+                                        <th className="r">SATIÅž</th>
                                         <th className="r">KAR</th>
                                     </tr>
                                 </thead>
@@ -131,8 +131,8 @@ export default function HizmetDagilimi({ details = [], onPlateClick }) {
                                 <thead>
                                     <tr>
                                         <th>PLAKA</th>
-                                        <th className="r">ALIÞ</th>
-                                        <th className="r">SATIÞ</th>
+                                        <th className="r">ALIÅž</th>
+                                        <th className="r">SATIÅž</th>
                                         <th className="r">KAR</th>
                                     </tr>
                                 </thead>
