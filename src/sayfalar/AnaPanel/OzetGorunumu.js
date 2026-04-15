@@ -57,8 +57,7 @@ function InsightCard({ title, sub, items, emptyText, max, color, negativeOnly = 
                                         {name}
                                     </div>
                                     <div
-                                        className={`ov-list-item__value ${val >= 0 && !negativeOnly ? "is-pos" : "is-neg"
-                                            }`}
+                                        className={`ov-list-item__value ${val >= 0 && !negativeOnly ? "is-pos" : "is-neg"}`}
                                     >
                                         {fmt(val, true)}
                                     </div>
@@ -77,18 +76,17 @@ function InsightCard({ title, sub, items, emptyText, max, color, negativeOnly = 
 }
 
 export default function OzetGorunumu({ projects = [], rows = [] }) {
-    const safeProjects = Array.isArray(projects) ? projects : [];
-    const safeRows = Array.isArray(rows) ? rows : [];
-
     const allowedProjectSet = useMemo(() => new Set(ALLOWED_PROJECTS), []);
 
     const filteredProjects = useMemo(() => {
+        const safeProjects = Array.isArray(projects) ? projects : [];
         return safeProjects.filter((p) => allowedProjectSet.has(p.projectName));
-    }, [safeProjects, allowedProjectSet]);
+    }, [projects, allowedProjectSet]);
 
     const filteredRows = useMemo(() => {
+        const safeRows = Array.isArray(rows) ? rows : [];
         return safeRows.filter((r) => allowedProjectSet.has(r.ProjectName));
-    }, [safeRows, allowedProjectSet]);
+    }, [rows, allowedProjectSet]);
 
     const topProfit = useMemo(() => {
         return [...filteredProjects]

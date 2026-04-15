@@ -5,6 +5,8 @@ import "./ProjeTablosu.css";
 import { fmt, norm } from "./helpers";
 import PlateDetailModal from "./PlakaDetayPenceresi";
 
+const EXCLUDED_SERVICE_NAMES = ["HAKEDİŞ FARKI BEDELİ"];
+
 function ServiceBreakdown({
     details,
     onPlateClick,
@@ -13,9 +15,6 @@ function ServiceBreakdown({
 }) {
     const [svcF, setSvcF] = useState("");
     const [plateSearch, setPlateSearch] = useState("");
-
-    const EXCLUDED_SERVICE_NAMES = ["HAKEDİŞ FARKI BEDELİ"];
-
     const filteredDetails = useMemo(() => {
         return (details || []).filter((d) => {
             const serviceName = norm(d.ServiceExpenseName || d.ServiceExpense || "");
@@ -532,7 +531,7 @@ export default function ProjeTablosu({
             ...projectTotals,
             p: projectTotals.p,
         };
-    }, [filtered, monthlyDagilimTotal]);
+    }, [filtered]);
     const totalProfit = totals.s - totals.p;
     const totalProfitability = totals.s > 0 ? totalProfit / totals.s : 0;
 
@@ -632,8 +631,6 @@ export default function ProjeTablosu({
             "Karlılık",
         ]);
         rowIndex += 1;
-
-        const projectTableStart = rowIndex;
 
         filtered.forEach((p) => {
             const profitability = getProfitability(p);

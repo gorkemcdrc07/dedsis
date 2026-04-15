@@ -36,7 +36,7 @@ export default function AnaPanelSayfasi() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [tab, setTab] = useState("overview");
-    const [tableView, setTableView] = useState(1);
+    const [tableView] = useState(1);
 
     const selectedMonth = useMemo(() => {
         if (!startDate) return "";
@@ -55,7 +55,7 @@ export default function AnaPanelSayfasi() {
                 { data: muhasebeData, error: muhasebeError },
                 { data: ikData, error: ikError },
             ] = await Promise.all([
-                fetch("http://localhost:5000/api/get-data", {
+                fetch(`${process.env.REACT_APP_BACKEND_URL}/api/get-data`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
