@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
