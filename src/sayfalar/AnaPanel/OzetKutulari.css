@@ -1,0 +1,180 @@
+﻿.ozet-kutulari-alani {
+    margin-bottom: 20px;
+}
+
+.ozet-kutulari-baslik {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.ozet-kutulari-kicker {
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.9px;
+    text-transform: uppercase;
+    color: var(--yazi-ikincil);
+    margin-bottom: 4px;
+}
+
+.ozet-kutulari-title {
+    margin: 0;
+    font-size: 22px;
+    line-height: 1.1;
+    font-weight: 900;
+    color: var(--yazi-ana);
+}
+
+.ana-ust-kutular {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.ana-ust-kutu,
+.ozet-kart {
+    position: relative;
+    min-width: 0;
+    padding: 18px 18px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--kenarlik);
+    background: linear-gradient(180deg, var(--kart-arkaplan), var(--kart-arkaplan-2));
+    box-shadow: var(--golge);
+    overflow: hidden;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+    .ana-ust-kutu::before,
+    .ozet-kart::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.10), transparent 40%);
+        pointer-events: none;
+    }
+
+    .ana-ust-kutu::after,
+    .ozet-kart::after {
+        content: "";
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        top: 0;
+        height: 4px;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.35);
+    }
+
+    .ana-ust-kutu:hover,
+    .ozet-kart:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 18px 34px rgba(15, 23, 42, 0.18);
+        border-color: var(--kenarlik);
+    }
+
+.ozet-kart__ust {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.ana-ust-kutu__etiket,
+.ozet-kart__etiket {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--yazi-ikincil);
+    line-height: 1.4;
+}
+
+.ana-ust-kutu__deger,
+.ozet-kart__deger {
+    position: relative;
+    z-index: 1;
+    font-size: clamp(24px, 2vw, 30px);
+    line-height: 1.05;
+    font-weight: 900;
+    color: var(--yazi-ana);
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pozitif {
+    color: #22c55e;
+}
+
+.negatif {
+    color: #f87171;
+}
+
+/* Accent renkleri */
+.accent-blue::after {
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+}
+
+.accent-indigo::after {
+    background: linear-gradient(90deg, #6366f1, #818cf8);
+}
+
+.accent-green::after {
+    background: linear-gradient(90deg, #16a34a, #4ade80);
+}
+
+.accent-red::after {
+    background: linear-gradient(90deg, #dc2626, #f87171);
+}
+
+.accent-amber::after {
+    background: linear-gradient(90deg, #d97706, #fbbf24);
+}
+
+.accent-slate::after {
+    background: linear-gradient(90deg, #475569, #94a3b8);
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .ana-ust-kutular {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .ozet-kutulari-title {
+        font-size: 20px;
+    }
+
+    .ana-ust-kutular {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .ana-ust-kutu,
+    .ozet-kart {
+        padding: 16px;
+        border-radius: 18px;
+    }
+
+    .ana-ust-kutu__deger,
+    .ozet-kart__deger {
+        font-size: 22px;
+    }
+}
+
+@media (max-width: 520px) {
+    .ana-ust-kutular {
+        grid-template-columns: 1fr;
+    }
+
+    .ana-ust-kutu__deger,
+    .ozet-kart__deger {
+        font-size: 24px;
+    }
+}

@@ -1,0 +1,585 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600&display=swap');
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --c-bg: #05070d;
+    --c-surface: rgba(255,255,255,0.028);
+    --c-border: rgba(255,255,255,0.06);
+    --c-orange: #ff6b2b;
+    --c-orange-glow: rgba(255,107,43,0.35);
+    --c-white: #f0f4ff;
+    --c-muted: #3d4a5c;
+    --c-error: #ff3b6b;
+    --font-head: 'Bebas Neue', sans-serif;
+    --font-body: 'Outfit', sans-serif;
+}
+
+/* ─── SCENE ─── */
+.ls {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--c-bg);
+    font-family: var(--font-body);
+    position: relative;
+    overflow: hidden;
+}
+
+/* ─── ROTATING RINGS ─── */
+.ls__ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(255,107,43,0.06);
+    top: 50%;
+    left: 50%;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.ls__ring--1 {
+    width: 720px;
+    height: 720px;
+    margin-top: -360px;
+    margin-left: -360px;
+    animation: ringRotate 32s linear infinite;
+}
+
+    .ls__ring--1::before {
+        content: '';
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        background: var(--c-orange);
+        border-radius: 50%;
+        top: -5px;
+        left: 50%;
+        transform: translateX(-50%);
+        box-shadow: 0 0 16px 6px var(--c-orange-glow);
+    }
+
+.ls__ring--2 {
+    width: 520px;
+    height: 520px;
+    margin-top: -260px;
+    margin-left: -260px;
+    border-color: rgba(79,195,247,0.04);
+    animation: ringRotate 20s linear infinite reverse;
+}
+
+    .ls__ring--2::before {
+        content: '';
+        position: absolute;
+        width: 7px;
+        height: 7px;
+        background: #4fc3f7;
+        border-radius: 50%;
+        bottom: -3px;
+        left: 35%;
+        transform: translateX(-50%);
+        box-shadow: 0 0 12px 5px rgba(79,195,247,0.4);
+    }
+
+.ls__ring--3 {
+    width: 300px;
+    height: 300px;
+    margin-top: -150px;
+    margin-left: -150px;
+    border-color: rgba(255,255,255,0.025);
+    animation: ringRotate 14s linear infinite;
+}
+
+@keyframes ringRotate {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ─── GLOW BLOBS ─── */
+.ls__blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(110px);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.ls__blob--1 {
+    width: 560px;
+    height: 560px;
+    background: radial-gradient(circle, rgba(255,107,43,0.08) 0%, transparent 70%);
+    top: -140px;
+    right: -140px;
+    animation: blobFloat 14s ease-in-out infinite alternate;
+}
+
+.ls__blob--2 {
+    width: 480px;
+    height: 480px;
+    background: radial-gradient(circle, rgba(79,195,247,0.05) 0%, transparent 70%);
+    bottom: -120px;
+    left: -120px;
+    animation: blobFloat 18s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes blobFloat {
+    from {
+        transform: translate(0,0) scale(1);
+    }
+
+    to {
+        transform: translate(25px,18px) scale(1.06);
+    }
+}
+
+/* ─── SCANLINES ─── */
+.ls__scan {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient( 0deg, transparent, transparent 3px, rgba(0,0,0,0.035) 3px, rgba(0,0,0,0.035) 4px );
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* ─── CARD ─── */
+.ls__box {
+    position: relative;
+    z-index: 10;
+    width: 400px;
+    padding: 52px 44px 44px;
+    background: rgba(6,10,20,0.72);
+    border: 1px solid var(--c-border);
+    border-radius: 28px;
+    backdrop-filter: blur(40px);
+    box-shadow: 0 0 0 1px rgba(255,107,43,0.04), 0 50px 100px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.04);
+    animation: boxIn 0.9s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+    .ls__box::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 12%;
+        right: 12%;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--c-orange), transparent);
+    }
+
+@keyframes boxIn {
+    from {
+        opacity: 0;
+        transform: translateY(36px) scale(0.96);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* ─── LOGO ─── */
+.ls__logo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 40px;
+    animation: fadeUp 0.7s ease 0.1s both;
+}
+
+.ls__logo-emblem {
+    width: 58px;
+    height: 58px;
+    border-radius: 18px;
+    border: 1px solid rgba(255,107,43,0.18);
+    background: rgba(255,107,43,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    position: relative;
+}
+
+    .ls__logo-emblem::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: linear-gradient(135deg, rgba(255,107,43,0.1) 0%, transparent 55%);
+    }
+
+    .ls__logo-emblem svg {
+        width: 28px;
+        height: 28px;
+        stroke: var(--c-orange);
+        fill: none;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        z-index: 1;
+        position: relative;
+    }
+
+.ls__logo-name {
+    font-family: var(--font-head);
+    font-size: 34px;
+    letter-spacing: 5px;
+    color: var(--c-white);
+    line-height: 1;
+}
+
+.ls__logo-sub {
+    font-size: 10px;
+    letter-spacing: 2.5px;
+    color: var(--c-muted);
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+/* ─── FORM FIELDS ─── */
+.ls__fields {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+    animation: fadeUp 0.7s ease 0.2s both;
+}
+
+.ls__field {
+    position: relative;
+}
+
+.ls__field-icon {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    display: flex;
+}
+
+    .ls__field-icon svg {
+        width: 16px;
+        height: 16px;
+        stroke: var(--c-muted);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        transition: stroke 0.2s;
+    }
+
+.ls__field:focus-within .ls__field-icon svg {
+    stroke: var(--c-orange);
+}
+
+.ls__input {
+    width: 100%;
+    height: 50px;
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: 12px;
+    color: var(--c-white);
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 400;
+    padding: 0 16px 0 42px;
+    outline: none;
+    transition: border-color 0.25s, background 0.25s, box-shadow 0.25s;
+    -webkit-appearance: none;
+}
+
+    .ls__input::placeholder {
+        color: #252e40;
+    }
+
+    .ls__input:focus {
+        border-color: rgba(255,107,43,0.38);
+        background: rgba(255,107,43,0.025);
+        box-shadow: 0 0 0 3px rgba(255,107,43,0.06);
+    }
+
+    .ls__input:-webkit-autofill {
+        -webkit-box-shadow: 0 0 0 100px #060a14 inset;
+        -webkit-text-fill-color: var(--c-white);
+    }
+
+/* ─── ERROR ─── */
+.ls__error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(255,59,107,0.07);
+    border: 1px solid rgba(255,59,107,0.16);
+    border-radius: 10px;
+    animation: shake 0.45s cubic-bezier(0.36,0.07,0.19,0.97);
+}
+
+.ls__error-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--c-error);
+    flex-shrink: 0;
+}
+
+.ls__error-text {
+    font-size: 13px;
+    color: #ff8fa8;
+    font-weight: 500;
+}
+
+@keyframes shake {
+    0%,100% {
+        transform: translateX(0)
+    }
+
+    20% {
+        transform: translateX(-5px)
+    }
+
+    40% {
+        transform: translateX(5px)
+    }
+
+    60% {
+        transform: translateX(-3px)
+    }
+
+    80% {
+        transform: translateX(3px)
+    }
+}
+
+/* ─── BUTTON ─── */
+.ls__btn {
+    width: 100%;
+    height: 50px;
+    border: none;
+    border-radius: 12px;
+    background: var(--c-orange);
+    color: #fff;
+    font-family: var(--font-head);
+    font-size: 17px;
+    letter-spacing: 2.5px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    box-shadow: 0 8px 28px rgba(255,107,43,0.28);
+    transition: transform 0.2s, box-shadow 0.3s;
+    animation: fadeUp 0.7s ease 0.3s both;
+    margin-top: 6px;
+}
+
+    .ls__btn::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,0.14) 0%, transparent 50%);
+        pointer-events: none;
+    }
+
+    /* shimmer sweep */
+    .ls__btn::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 60%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.13), transparent);
+        transform: skewX(-20deg);
+        transition: left 0.55s ease;
+    }
+
+    .ls__btn:hover:not(:disabled)::after {
+        left: 160%;
+    }
+
+    .ls__btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 14px 38px rgba(255,107,43,0.42);
+    }
+
+    .ls__btn:active:not(:disabled) {
+        transform: translateY(0);
+    }
+
+    .ls__btn:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+
+/* ─── SPINNER ─── */
+.ls__spin {
+    width: 19px;
+    height: 19px;
+    border: 2px solid rgba(255,255,255,0.22);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.65s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ─── NOTE ─── */
+.ls__note {
+    margin-top: 22px;
+    text-align: center;
+    font-size: 11px;
+    color: #1a2333;
+    letter-spacing: 0.4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    animation: fadeUp 0.7s ease 0.4s both;
+}
+
+    .ls__note svg {
+        width: 11px;
+        height: 11px;
+        stroke: #1a2333;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+/* ─── SUCCESS OVERLAY ─── */
+.ls__success {
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    border-radius: 28px;
+    background: rgba(5,7,13,0.97);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    animation: fadeIn 0.4s ease both;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0
+    }
+
+    to {
+        opacity: 1
+    }
+}
+
+.ls__success-ring {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    border: 2px solid var(--c-orange);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 28px rgba(255,107,43,0.22);
+    animation: pop 0.5s cubic-bezier(0.175,0.885,0.32,1.275) 0.1s both;
+}
+
+@keyframes pop {
+    from {
+        transform: scale(0);
+        opacity: 0
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1
+    }
+}
+
+.ls__success-ring svg {
+    width: 32px;
+    height: 32px;
+    stroke: var(--c-orange);
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 48;
+    stroke-dashoffset: 48;
+    animation: draw 0.5s ease 0.5s forwards;
+}
+
+@keyframes draw {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.ls__success-title {
+    font-family: var(--font-head);
+    font-size: 26px;
+    letter-spacing: 3px;
+    color: var(--c-white);
+    animation: fadeUp 0.5s ease 0.3s both;
+}
+
+.ls__success-sub {
+    font-size: 12px;
+    color: var(--c-muted);
+    animation: fadeUp 0.5s ease 0.45s both;
+}
+
+.ls__progress {
+    width: 72px;
+    height: 2px;
+    background: rgba(255,107,43,0.12);
+    border-radius: 2px;
+    overflow: hidden;
+    animation: fadeUp 0.5s ease 0.55s both;
+    margin-top: 4px;
+}
+
+.ls__progress-fill {
+    height: 100%;
+    background: var(--c-orange);
+    animation: prog 1.9s ease 0.6s both;
+}
+
+@keyframes prog {
+    from {
+        width: 0
+    }
+
+    to {
+        width: 100%
+    }
+}
+
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

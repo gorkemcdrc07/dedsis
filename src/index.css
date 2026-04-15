@@ -1,13 +1,118 @@
+:root {
+    --arkaplan-cam: rgba(10, 14, 24, 0.88);
+    --kenarlik: rgba(255, 255, 255, 0.08);
+    --yazi-ana: #ffffff;
+    --yazi-ikincil: #d1d5db;
+    --vurgu: #6d4aff;
+    --vurgu-2: #8b5cf6;
+    --hover-bg: rgba(255, 255, 255, 0.08);
+    --golge: 0 10px 30px rgba(0, 0, 0, 0.45);
+    --golge-aktif: 0 10px 24px rgba(109, 74, 255, 0.38);
+    --sayfa-arkaplan: #0a0d14;
+    --sayfa-arkaplan-2: #111827;
+    --kart-arkaplan: #10151f;
+    --kart-arkaplan-2: #161c28;
+    --input-arkaplan: rgba(255, 255, 255, 0.04);
+    --input-kenarlik: rgba(255, 255, 255, 0.1);
+    --basari: #22c55e;
+    --uyari: #f59e0b;
+    --tehlike: #ef4444;
+    --scrollbar: rgba(255, 255, 255, 0.18);
+    --scrollbar-hover: rgba(255, 255, 255, 0.28);
+}
+
+body[data-theme="light"] {
+    --arkaplan-cam: rgba(255, 255, 255, 0.78);
+    --kenarlik: rgba(255, 255, 255, 0.45);
+    --yazi-ana: #0f172a;
+    --yazi-ikincil: #64748b;
+    --vurgu: #6d4aff;
+    --vurgu-2: #8b5cf6;
+    --hover-bg: rgba(99, 102, 241, 0.08);
+    --golge: 0 10px 30px rgba(15, 23, 42, 0.08);
+    --golge-aktif: 0 10px 24px rgba(109, 74, 255, 0.2);
+    --sayfa-arkaplan: #f8fafc;
+    --sayfa-arkaplan-2: #eef2ff;
+    --kart-arkaplan: #ffffff;
+    --kart-arkaplan-2: #f8fafc;
+    --input-arkaplan: rgba(15, 23, 42, 0.04);
+    --input-kenarlik: rgba(15, 23, 42, 0.08);
+    --basari: #16a34a;
+    --uyari: #d97706;
+    --tehlike: #dc2626;
+    --scrollbar: rgba(100, 116, 139, 0.35);
+    --scrollbar-hover: rgba(100, 116, 139, 0.55);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+    min-height: 100%;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
 body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+    background: radial-gradient(circle at top left, rgba(109, 74, 255, 0.14), transparent 26%), radial-gradient(circle at top right, rgba(139, 92, 246, 0.1), transparent 22%), linear-gradient(180deg, var(--sayfa-arkaplan), var(--sayfa-arkaplan-2));
+    color: var(--yazi-ana);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+    font: inherit;
+}
+
+button {
+    cursor: pointer;
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+    font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
 }
+
+img,
+svg {
+    display: block;
+    max-width: 100%;
+}
+
+::selection {
+    background: rgba(109, 74, 255, 0.22);
+    color: var(--yazi-ana);
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--scrollbar);
+    border-radius: 999px;
+}
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--scrollbar-hover);
+    }
