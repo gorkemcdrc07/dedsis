@@ -7,11 +7,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const API_URL =
-    "https://api.odaklojistik.com.tr/api/tmsdespatchincomeexpenses/getall";
+const API_URL = process.env.API_URL;
+const TOKEN = process.env.API_TOKEN;
 
-const TOKEN =
-    "49223653afa4b7e22c3659762c835dcdef9725a401e928fd46f697be8ea2597273bf4479cf9d0f7e5b8b03907c2a0b4d58625692c3e30629ac01fc477774de75";
+app.get("/", (req, res) => {
+    res.send("Backend çalışıyor");
+});
 
 app.post("/api/get-data", async (req, res) => {
     try {
@@ -26,10 +27,8 @@ app.post("/api/get-data", async (req, res) => {
 
         console.log("📥 RAW RESPONSE:", response.data);
 
-        // 🔥 EN ÖNEMLİ KISIM
         let data = response.data;
 
-        // API farklı format dönebilir → normalize et
         if (Array.isArray(data)) {
             console.log("✅ Direkt array geldi");
         } else if (Array.isArray(data?.data)) {
@@ -59,6 +58,8 @@ app.post("/api/get-data", async (req, res) => {
     }
 });
 
-app.listen(5000, () => {
-    console.log("🚀 Proxy server çalışıyor: http://localhost:5000");
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+    console.log(`🚀 Proxy server çalışıyor: http://localhost:${PORT}`);
 });
