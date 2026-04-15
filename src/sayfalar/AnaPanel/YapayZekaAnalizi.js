@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./YapayZekaAnalizi.css";
 import { fmt, norm, aggregatePlateSummary, aggregateServiceSummary } from "./helpers";
 

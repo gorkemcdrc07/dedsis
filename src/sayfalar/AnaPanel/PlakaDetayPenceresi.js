@@ -1,4 +1,4 @@
-﻿import React, { useMemo } from "react";
+import React, { useMemo } from "react";
 import "./PlakaDetayPenceresi.css";
 import { fmt } from "./helpers";
 import { PBadge } from "./ui";

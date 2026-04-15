@@ -1,4 +1,4 @@
-﻿export function fmt(value, short = false) {
+export function fmt(value, short = false) {
     const n = Number(value || 0);
 
     if (short) {

@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import "./ProjeTablosu2.css";
 import PlateDetailModal2 from "./PlakaDetayPenceresi2";
 // ─── helpers ────────────────────────────────────────────────────────────────
