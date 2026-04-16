@@ -154,8 +154,8 @@ export default function MuhasebeKarlilikSayfasi() {
     const loadUsers = async () => {
         const { data } = await supabase
             .from("kullanicilar")
-            .select("id, ad_soyad")
-            .order("ad_soyad");
+            .select("id, kullanici_adi")
+            .order("kullanici_adi");
 
         setUsers(data || []);
     };
@@ -170,7 +170,7 @@ export default function MuhasebeKarlilikSayfasi() {
             return projects.map(p => ({ id: p.id, label: p.reel_proje_adi }));
         }
 
-        return users.map(u => ({ id: u.id, label: u.ad_soyad }));
+        return users.map(u => ({ id: u.id, label: u.kullanici_adi }));
     }, [targetType, projects, users]);
     /* ─── Target type switch ─── */
     const handleTargetTypeChange = (type) => {

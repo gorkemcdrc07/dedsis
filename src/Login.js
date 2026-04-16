@@ -16,6 +16,7 @@ const ParticleCanvas = () => {
             W = canvas.width = window.innerWidth;
             H = canvas.height = window.innerHeight;
         };
+
         resize();
         window.addEventListener("resize", resize);
 
@@ -31,9 +32,11 @@ const ParticleCanvas = () => {
 
         const draw = () => {
             ctx.clearRect(0, 0, W, H);
+
             dots.forEach((d) => {
                 d.x += d.vx;
                 d.y += d.vy;
+
                 if (d.x < 0) d.x = W;
                 if (d.x > W) d.x = 0;
                 if (d.y < 0) d.y = H;
@@ -45,12 +48,12 @@ const ParticleCanvas = () => {
                 ctx.fill();
             });
 
-            // connect nearby particles
             for (let i = 0; i < count; i++) {
                 for (let j = i + 1; j < count; j++) {
                     const dx = dots[i].x - dots[j].x;
                     const dy = dots[i].y - dots[j].y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
+
                     if (dist < 120) {
                         ctx.beginPath();
                         ctx.moveTo(dots[i].x, dots[i].y);
@@ -61,8 +64,10 @@ const ParticleCanvas = () => {
                     }
                 }
             }
+
             animId = requestAnimationFrame(draw);
         };
+
         draw();
 
         return () => {
@@ -84,7 +89,6 @@ const ParticleCanvas = () => {
     );
 };
 
-/* ─── SVG ICONS ─── */
 const IcoTruck = () => (
     <svg viewBox="0 0 24 24">
         <rect x="1" y="3" width="15" height="13" rx="1" />
@@ -137,63 +141,59 @@ const IcoCheck = () => (
     </svg>
 );
 
-/* ─── LOGIN COMPONENT ─── */
-const Login = () => {
+const Login = ({ setIsAuthenticated }) => {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
-    const [status, setStatus] = useState("idle"); // idle | loading | error | success
+    const [status, setStatus] = useState("idle");
     const navigate = useNavigate();
 
     const handleSubmit = (e) => {
         e.preventDefault();
+
         if (status === "loading" || status === "success") return;
+
         setStatus("loading");
 
         setTimeout(() => {
             if (username === "admin" && password === "1234") {
+                localStorage.setItem("token", "giris-basarili");
+                setIsAuthenticated(true);
                 setStatus("success");
-                setTimeout(() => navigate("/ana-panel"), 2400);
+
+                setTimeout(() => {
+                    navigate("/ana-panel", { replace: true });
+                }, 1200);
             } else {
                 setStatus("error");
                 setTimeout(() => setStatus("idle"), 3000);
             }
-        }, 1400);
+        }, 1000);
     };
 
     return (
         <div className="ls">
-            {/* Animated particle network */}
             <ParticleCanvas />
-
-            {/* Rotating orbit rings */}
             <div className="ls__ring ls__ring--1" />
             <div className="ls__ring ls__ring--2" />
             <div className="ls__ring ls__ring--3" />
-
-            {/* Ambient glows */}
             <div className="ls__blob ls__blob--1" />
             <div className="ls__blob ls__blob--2" />
-
-            {/* Scanlines texture */}
             <div className="ls__scan" />
 
-            {/* ─── CARD ─── */}
             <div className="ls__box">
-                {/* Success overlay */}
                 {status === "success" && (
                     <div className="ls__success">
                         <div className="ls__success-ring">
                             <IcoCheck />
                         </div>
                         <p className="ls__success-title">ERİŞİM ONAYLANDI</p>
-                        <p className="ls__success-sub">DEDSİS paneline yönlendiriliyorsunuz</p>
+                        <p className="ls__success-sub">Panele yönlendiriliyorsunuz</p>
                         <div className="ls__progress">
                             <div className="ls__progress-fill" />
                         </div>
                     </div>
                 )}
 
-                {/* Logo */}
                 <div className="ls__logo">
                     <div className="ls__logo-emblem">
                         <IcoTruck />
@@ -202,10 +202,8 @@ const Login = () => {
                     <span className="ls__logo-sub">Gelir &amp; Gider Yönetim Sistemi</span>
                 </div>
 
-                {/* Form */}
                 <form onSubmit={handleSubmit} autoComplete="off" noValidate>
                     <div className="ls__fields">
-                        {/* Username */}
                         <div className="ls__field">
                             <span className="ls__field-icon">
                                 <IcoUser />
@@ -222,7 +220,6 @@ const Login = () => {
                             />
                         </div>
 
-                        {/* Password */}
                         <div className="ls__field">
                             <span className="ls__field-icon">
                                 <IcoLock />
@@ -238,16 +235,16 @@ const Login = () => {
                             />
                         </div>
 
-                        {/* Error */}
                         {status === "error" && (
                             <div className="ls__error">
                                 <span className="ls__error-dot" />
-                                <span className="ls__error-text">Kullanıcı adı veya şifre hatalı.</span>
+                                <span className="ls__error-text">
+                                    Kullanıcı adı veya şifre hatalı.
+                                </span>
                             </div>
                         )}
                     </div>
 
-                    {/* Submit */}
                     <button
                         type="submit"
                         className="ls__btn"
@@ -264,7 +261,6 @@ const Login = () => {
                     </button>
                 </form>
 
-                {/* Footer note */}
                 <p className="ls__note">
                     <IcoShield />
                     Uçtan uca şifreli güvenli bağlantı

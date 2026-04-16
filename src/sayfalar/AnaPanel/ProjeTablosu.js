@@ -7,6 +7,8 @@ import PlateDetailModal from "./PlakaDetayPenceresi";
 
 const EXCLUDED_SERVICE_NAMES = ["HAKEDİŞ FARKI BEDELİ"];
 
+// ProjeTablosu.jsx içindeki ServiceBreakdown fonksiyonunu tamamen bu ile değiştirin
+
 function ServiceBreakdown({
     details,
     onPlateClick,
@@ -15,12 +17,15 @@ function ServiceBreakdown({
 }) {
     const [svcF, setSvcF] = useState("");
     const [plateSearch, setPlateSearch] = useState("");
+    const [openCats, setOpenCats] = useState({});
+
+    const toggleCat = (key) =>
+        setOpenCats((prev) => ({ ...prev, [key]: !prev[key] }));
+
     const filteredDetails = useMemo(() => {
         return (details || []).filter((d) => {
             const serviceName = norm(d.ServiceExpenseName || d.ServiceExpense || "");
-            return !EXCLUDED_SERVICE_NAMES.some(
-                (name) => serviceName === norm(name)
-            );
+            return !EXCLUDED_SERVICE_NAMES.some((name) => serviceName === norm(name));
         });
     }, [details]);
 
@@ -32,14 +37,13 @@ function ServiceBreakdown({
         );
 
         const grouped = new Map();
-
         filtered.forEach((row) => {
             const hesapAdi = row.hesap_adi || "-";
             const altKalem = row.alt_kalem || "-";
             const kullaniciAdi = row.kullanici_adi || "-";
+            const kategori = String(row.kategori || "").toLowerCase().trim();
 
-            const key =
-                `${hesapAdi}__${altKalem}__${kullaniciAdi}`.toLocaleLowerCase("tr-TR");
+            const key = `${hesapAdi}__${altKalem}__${kullaniciAdi}__${kategori}`.toLocaleLowerCase("tr-TR");
 
             if (!grouped.has(key)) {
                 grouped.set(key, {
@@ -50,6 +54,7 @@ function ServiceBreakdown({
                     tutar: 0,
                     donem_ay: row.donem_ay || "",
                     dagilim_orani: Number(row.dagilim_orani || 0),
+                    kategori,
                 });
             }
 
@@ -57,24 +62,51 @@ function ServiceBreakdown({
             current.tutar += Number(row.tutar || 0);
             current.dagilim_orani = Number(row.dagilim_orani || 0);
         });
-
         return [...grouped.values()].sort((a, b) => b.tutar - a.tutar);
     }, [projeDagilimRows, selectedMonth]);
+
+    // Kategori sınıflandırma
+    const IK_KEYWORDS = ["ik", "personel", "maaş", "sgk", "işçi", "çalışan", "prim"];
+    const MUH_KEYWORDS = ["muhasebe", "vergi", "kdv", "stopaj", "mali", "denetim", "fatura"];
+
+    const categorize = (item) => {
+        const text = `${item.hesap_adi} ${item.alt_kalem}`.toLowerCase();
+        const kat = String(item.kategori || "").toLowerCase().trim();
+
+        if (kat === "ik") return "ik";
+        if (kat === "muhasebe") return "muhasebe";
+
+        if (IK_KEYWORDS.some((k) => text.includes(k))) return "ik";
+        if (MUH_KEYWORDS.some((k) => text.includes(k))) return "muhasebe";
+
+        return "diger";
+    };
+    const categorized = useMemo(() => {
+        const groups = { ik: [], muhasebe: [], diger: [] };
+        monthlyDagilim.forEach((item) => {
+            groups[categorize(item)].push(item);
+        });
+        return groups;
+    }, [monthlyDagilim]);
+
+    const CAT_CONFIG = [
+        { key: "ik", label: "İK", color: "#7F77DD" },
+        { key: "muhasebe", label: "Muhasebe", color: "#1D9E75" },
+        { key: "diger", label: "Diğer", color: "#888780" },
+    ];
+
     const svcOpts = useMemo(
         () =>
-            [
-                ...new Set(
-                    filteredDetails
-                        .map((d) => d.ServiceExpenseName || d.ServiceExpense)
-                        .filter((x) => x && x !== "-")
-                ),
-            ].sort((a, b) => a.localeCompare(b, "tr")),
+            [...new Set(
+                filteredDetails
+                    .map((d) => d.ServiceExpenseName || d.ServiceExpense)
+                    .filter((x) => x && x !== "-"),
+            )].sort((a, b) => a.localeCompare(b, "tr")),
         [filteredDetails]
     );
 
     const filtered = useMemo(() => {
         if (!svcF) return filteredDetails;
-
         return filteredDetails.filter((d) => {
             const serviceName = d.ServiceExpenseName || d.ServiceExpense || "";
             return norm(serviceName) === norm(svcF);
@@ -83,37 +115,22 @@ function ServiceBreakdown({
 
     const bySvc = useMemo(() => {
         const map = new Map();
-
         filtered.forEach((d) => {
             const key = d.ServiceExpenseName || d.ServiceExpense || "-";
-
-            if (!map.has(key)) {
-                map.set(key, { name: key, p: 0, s: 0 });
-            }
-
+            if (!map.has(key)) map.set(key, { name: key, p: 0, s: 0 });
             const g = map.get(key);
             g.p += Number(d.PurchaseInvoiceIncome || 0);
             g.s += Number(d.SalesInvoceIncome || 0);
         });
-
-        return [...map.values()]
-            .map((x) => ({
-                ...x,
-                profit: x.s - x.p,
-            }))
-            .sort((a, b) => b.p - a.p);
+        return [...map.values()].sort((a, b) => b.p - a.p);
     }, [filtered]);
 
     const byPlate = useMemo(() => {
         const unique = new Set();
-
         filtered.forEach((d) => {
             const plate = d.PlateNumber || "-";
-            if (norm(plate).includes(norm(plateSearch))) {
-                unique.add(plate);
-            }
+            if (norm(plate).includes(norm(plateSearch))) unique.add(plate);
         });
-
         return [...unique].sort((a, b) => a.localeCompare(b, "tr"));
     }, [filtered, plateSearch]);
 
@@ -127,9 +144,7 @@ function ServiceBreakdown({
                 >
                     <option value="">Tüm hizmetler</option>
                     {svcOpts.map((o) => (
-                        <option key={o} value={o}>
-                            {o}
-                        </option>
+                        <option key={o} value={o}>{o}</option>
                     ))}
                 </select>
 
@@ -142,6 +157,7 @@ function ServiceBreakdown({
             </div>
 
             <div className="detail-grid">
+                {/* SOL: Hizmet / Masraf */}
                 <section className="detail-panel detail-panel-services">
                     <div className="sec-lbl">Hizmet / Masraf ({bySvc.length})</div>
 
@@ -149,32 +165,36 @@ function ServiceBreakdown({
                         <div className="detail-empty">Veri yok</div>
                     ) : (
                         <div className="dagilim-detail-list">
-                            {bySvc.map((s) => (
-                                <div className="dagilim-detail-row compact-row" key={s.name}>
-                                    <div className="dagilim-detail-main">
-                                        <div className="dagilim-detail-title">{s.name}</div>
+                            {bySvc.map((s) => {
+                                const showSales = s.s !== 0;
+                                const showPurchase = s.p !== 0;
+                                return (
+                                    <div className="dagilim-detail-row compact-row" key={s.name}>
+                                        <div className="dagilim-detail-main">
+                                            <div className="dagilim-detail-title">{s.name}</div>
+                                        </div>
+                                        <div className="dagilim-detail-fields">
+                                            {showSales && (
+                                                <div className="dagilim-field">
+                                                    <span>Satış</span>
+                                                    {fmt(s.s, true)}
+                                                </div>
+                                            )}
+                                            {showPurchase && (
+                                                <div className="dagilim-field">
+                                                    <span>Alış</span>
+                                                    {fmt(s.p, true)}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-
-                                    <div className="dagilim-detail-fields">
-                                        <div className="dagilim-field">
-                                            <span>Satış</span>
-                                            {fmt(s.s, true)}
-                                        </div>
-                                        <div className="dagilim-field">
-                                            <span>Alış</span>
-                                            {fmt(s.p, true)}
-                                        </div>
-                                        <div className="dagilim-field">
-                                            <span>Kâr</span>
-                                            <strong>{fmt(s.profit, true)}</strong>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </section>
 
+                {/* SAĞ: Genel Dağılım Maliyetleri - Kategorili */}
                 <section className="detail-panel detail-panel-costs">
                     <div className="sec-lbl">
                         Genel Dağılım Maliyetleri ({monthlyDagilim.length})
@@ -184,69 +204,67 @@ function ServiceBreakdown({
                         <div className="detail-empty">Dağılım verisi yok</div>
                     ) : (
                         <div className="dagilim-detail-list">
-                            <div
-                                className="dagilim-detail-row compact-row"
-                                style={{ background: "#eef4ff" }}
-                            >
-                                <div className="dagilim-detail-main">
-                                    <div className="dagilim-detail-title">TOPLAM</div>
-                                </div>
+                            {CAT_CONFIG.map(({ key, label, color }) => {
+                                const items = categorized[key];
+                                if (items.length === 0) return null;
+                                const total = items.reduce((s, i) => s + i.tutar, 0);
+                                const isOpen = !!openCats[key];
+                                return (
+                                    <div key={key}>
+                                        {/* Kategori başlığı */}
+                                        <div
+                                            className={`cat-group-header${isOpen ? " open" : ""}`}
+                                            onClick={() => toggleCat(key)}
+                                        >
+                                            <div className="cat-group-left">
+                                                <span
+                                                    className="cat-dot-indicator"
+                                                    style={{ background: color }}
+                                                />
+                                                <span className="cat-group-name">{label}</span>
+                                                <span className="cat-group-count">{items.length} kalem</span>
+                                            </div>
+                                            <div className="cat-group-right">
+                                                <span className="cat-group-total">{fmt(total, true)}</span>
+                                                <span className="cat-group-chev">
+                                                    {isOpen ? "▲" : "▼"}
+                                                </span>
+                                            </div>
+                                        </div>
 
-                                <div className="dagilim-detail-fields">
-                                    <div className="dagilim-field">
-                                        <span>Toplam Tutar</span>
-                                        <strong>
-                                            {fmt(
-                                                    monthlyDagilim.reduce(
-                                                        (sum, item) => sum + Number(item.tutar || 0),
-                                                        0
-                                                    ),
-                                                true
-                                            )}
-                                        </strong>
+                                        {/* Detay satırlar */}
+                                        {isOpen && (
+                                            <div className="cat-group-body">
+                                                {items.map((item) => (
+                                                    <div
+                                                        className="cat-group-item"
+                                                        key={item.id || `${item.hesap_adi}-${item.alt_kalem}`}
+                                                    >
+                                                        <div className="cat-item-main">
+                                                            <div className="cat-item-title">
+                                                                {String(item.hesap_adi).toUpperCase()}
+                                                            </div>
+                                                            <div className="cat-item-sub">
+                                                                {item.alt_kalem}
+                                                            </div>
+                                                        </div>
+                                                        <div className="cat-item-tutar">
+                                                            {fmt(item.tutar, true)}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                            </div>
-
-                            {monthlyDagilim.map((item) => (
-                                <div
-                                    className="dagilim-detail-row dagilim-cost-row compact-row"
-                                    key={item.id || `${item.hesap_adi}-${item.alt_kalem}-${item.tutar}`}
-                                >
-                                    <div className="dagilim-detail-main">
-                                        <div className="dagilim-detail-title">
-                                            {String(item.hesap_adi).toUpperCase()}
-                                        </div>
-                                        <div className="dagilim-detail-sub">
-                                            {item.alt_kalem} · {item.kullanici_adi}
-                                        </div>
-                                    </div>
-
-                                    <div className="dagilim-detail-fields dagilim-cost-fields">
-                                        <div className="dagilim-field">
-                                            <span>Dağıtılan</span>
-                                            <strong>{fmt(item.tutar, true)}</strong>
-                                        </div>
-
-                                        <div className="dagilim-field">
-                                            <span>Oran</span>
-                                            <strong>%{Number(item.dagilim_orani || 0)}</strong>
-                                        </div>
-
-                                        <div className="dagilim-field">
-                                            <span>Tutar</span>
-                                            <strong>{fmt(item.tutar, true)}</strong>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </section>
 
+                {/* Plakalar */}
                 <section className="detail-panel detail-panel-plates">
                     <div className="sec-lbl">Plaka ({byPlate.length})</div>
-
                     {byPlate.length === 0 ? (
                         <div className="detail-empty">Veri yok</div>
                     ) : (
@@ -269,7 +287,6 @@ function ServiceBreakdown({
         </div>
     );
 }
-
 const CURRENCY_FORMAT = '#,##0.00 [$₺-tr-TR]';
 const PERCENT_FORMAT = '0.00%';
 

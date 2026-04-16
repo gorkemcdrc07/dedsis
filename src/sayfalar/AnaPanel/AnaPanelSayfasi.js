@@ -55,7 +55,7 @@ export default function AnaPanelSayfasi() {
                 { data: muhasebeData, error: muhasebeError },
                 { data: ikData, error: ikError },
             ] = await Promise.all([
-                fetch(`${process.env.REACT_APP_BACKEND_URL}/api/get-data`, {
+                fetch("https://dedsis.onrender.com/api/get-data", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
