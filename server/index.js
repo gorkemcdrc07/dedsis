@@ -4,12 +4,24 @@ const axios = require("axios");
 
 const app = express();
 
+const allowedOrigins = [
+    "http://localhost:3000",
+    "https://dedsis.vercel.app",
+];
+
 const corsOptions = {
-    origin: ["http://localhost:3000"],
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error("CORS engellendi: " + origin));
+        }
+    },
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
 };
 
+app.use(cors(corsOptions));
 app.use(cors(corsOptions));
 app.use(express.json());
 
