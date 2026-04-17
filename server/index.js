@@ -4,7 +4,14 @@ const axios = require("axios");
 
 const app = express();
 
-app.use(cors());
+const corsOptions = {
+    origin: ["http://localhost:3000"],
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(express.json());
 
 const API_URL = process.env.API_URL;
@@ -14,15 +21,22 @@ app.get("/", (req, res) => {
     res.send("Backend çalışıyor");
 });
 
+app.get("/api/test", (req, res) => {
+    res.json({ ok: true, message: "CORS çalışıyor" });
+});
+
 app.post("/api/get-data", async (req, res) => {
     try {
         console.log("📤 GİDEN REQUEST:", req.body);
+        console.log("API_URL:", API_URL ? "var" : "yok");
+        console.log("TOKEN:", TOKEN ? "var" : "yok");
 
         const response = await axios.post(API_URL, req.body, {
             headers: {
                 Authorization: `Bearer ${TOKEN}`,
                 "Content-Type": "application/json",
             },
+            timeout: 30000,
         });
 
         console.log("📥 RAW RESPONSE:", response.data);
@@ -32,22 +46,17 @@ app.post("/api/get-data", async (req, res) => {
         if (Array.isArray(data)) {
             console.log("✅ Direkt array geldi");
         } else if (Array.isArray(data?.data)) {
-            console.log("✅ data.data kullanıldı");
             data = data.data;
         } else if (Array.isArray(data?.Data)) {
-            console.log("✅ data.Data kullanıldı");
             data = data.Data;
         } else if (Array.isArray(data?.result)) {
-            console.log("✅ data.result kullanıldı");
             data = data.result;
         } else {
             console.log("⚠️ ARRAY BULUNAMADI:", data);
             data = [];
         }
 
-        console.log("📊 FINAL ARRAY LENGTH:", data.length);
-
-        res.json(data);
+        res.status(200).json(data);
     } catch (error) {
         console.error("❌ PROXY ERROR:", error.response?.data || error.message);
 
