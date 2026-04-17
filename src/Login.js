@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "./lib/supabase";
 import "./Login.css";
 
 /* ─── PARTICLE SYSTEM ─── */
@@ -147,16 +148,31 @@ const Login = ({ setIsAuthenticated }) => {
     const [status, setStatus] = useState("idle");
     const navigate = useNavigate();
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
 
         if (status === "loading" || status === "success") return;
 
         setStatus("loading");
 
-        setTimeout(() => {
-            if (username === "admin" && password === "1234") {
+        try {
+            const { data, error } = await supabase
+                .from("kullanicilar")
+                .select("id, kullanici_adi, kullanici, sifre")
+                .eq("kullanici", username)
+                .eq("sifre", password)
+                .maybeSingle();
+
+            if (error) {
+                console.error("Supabase login hatası:", error);
+                setStatus("error");
+                setTimeout(() => setStatus("idle"), 3000);
+                return;
+            }
+
+            if (data) {
                 localStorage.setItem("token", "giris-basarili");
+                localStorage.setItem("user", JSON.stringify(data));
                 setIsAuthenticated(true);
                 setStatus("success");
 
@@ -167,7 +183,11 @@ const Login = ({ setIsAuthenticated }) => {
                 setStatus("error");
                 setTimeout(() => setStatus("idle"), 3000);
             }
-        }, 1000);
+        } catch (err) {
+            console.error("Beklenmeyen hata:", err);
+            setStatus("error");
+            setTimeout(() => setStatus("idle"), 3000);
+        }
     };
 
     return (

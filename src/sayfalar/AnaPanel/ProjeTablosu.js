@@ -5,7 +5,7 @@ import "./ProjeTablosu.css";
 import { fmt, norm } from "./helpers";
 import PlateDetailModal from "./PlakaDetayPenceresi";
 
-const EXCLUDED_SERVICE_NAMES = ["HAKEDİŞ FARKI BEDELİ"];
+const EXCLUDED_SERVICE_NAMES = [];
 
 // ProjeTablosu.jsx içindeki ServiceBreakdown fonksiyonunu tamamen bu ile değiştirin
 const IK_KEYWORDS = ["ik", "personel", "maaş", "sgk", "işçi", "çalışan", "prim"];
@@ -25,10 +25,7 @@ function ServiceBreakdown({
         setOpenCats((prev) => ({ ...prev, [key]: !prev[key] }));
 
     const filteredDetails = useMemo(() => {
-        return (details || []).filter((d) => {
-            const serviceName = norm(d.ServiceExpenseName || d.ServiceExpense || "");
-            return !EXCLUDED_SERVICE_NAMES.some((name) => serviceName === norm(name));
-        });
+        return details || [];
     }, [details]);
 
     const monthlyDagilim = useMemo(() => {
