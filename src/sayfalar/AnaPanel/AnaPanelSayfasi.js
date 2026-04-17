@@ -86,9 +86,14 @@ export default function AnaPanelSayfasi() {
                     .eq("donem_ayi", selectedMonth),
             ]);
             if (!apiResp.ok) {
-                throw new Error(`API Hatası: HTTP ${apiResp.status}`);
-            }
+                const errData = await apiResp.json().catch(() => ({}));
 
+                throw new Error(
+                    errData?.detail
+                        ? `API Hatası: ${JSON.stringify(errData.detail)}`
+                        : errData?.message || `API Hatası: HTTP ${apiResp.status}`
+                );
+            }
             if (projelerError || projeDagilimError || muhasebeError || ikError) {
                 throw new Error(
                     projelerError?.message ||

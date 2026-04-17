@@ -21,14 +21,31 @@ app.get("/", (req, res) => {
 });
 
 app.get("/api/test", (req, res) => {
-    res.json({ ok: true, message: "CORS çalışıyor" });
+    res.json({
+        ok: true,
+        message: "CORS çalışıyor",
+        apiUrlExists: !!API_URL,
+        tokenExists: !!TOKEN,
+    });
 });
 
 app.post("/api/get-data", async (req, res) => {
     try {
-        console.log("📤 GİDEN REQUEST:", req.body);
-        console.log("API_URL:", API_URL ? "var" : "yok");
-        console.log("TOKEN:", TOKEN ? "var" : "yok");
+        console.log("📤 req.body:", req.body);
+        console.log("API_URL:", API_URL);
+        console.log("TOKEN VAR MI:", !!TOKEN);
+
+        if (!API_URL) {
+            return res.status(500).json({
+                error: "API_URL tanımlı değil",
+            });
+        }
+
+        if (!TOKEN) {
+            return res.status(500).json({
+                error: "API_TOKEN tanımlı değil",
+            });
+        }
 
         const response = await axios.post(API_URL, req.body, {
             headers: {
@@ -45,23 +62,35 @@ app.post("/api/get-data", async (req, res) => {
         if (Array.isArray(data)) {
             console.log("✅ Direkt array geldi");
         } else if (Array.isArray(data?.data)) {
+            console.log("✅ data.data kullanıldı");
             data = data.data;
         } else if (Array.isArray(data?.Data)) {
+            console.log("✅ data.Data kullanıldı");
             data = data.Data;
         } else if (Array.isArray(data?.result)) {
+            console.log("✅ data.result kullanıldı");
             data = data.result;
         } else {
             console.log("⚠️ ARRAY BULUNAMADI:", data);
             data = [];
         }
 
+        console.log("📊 FINAL ARRAY LENGTH:", data.length);
+
         res.status(200).json(data);
     } catch (error) {
-        console.error("❌ PROXY ERROR:", error.response?.data || error.message);
+        console.error("❌ PROXY ERROR");
+        console.error("message:", error.message);
+        console.error("status:", error.response?.status);
+        console.error("data:", error.response?.data);
+        console.error("API_URL:", API_URL);
+        console.error("TOKEN VAR MI:", !!TOKEN);
 
         res.status(500).json({
             error: "API error",
-            detail: error.response?.data || error.message,
+            message: error.message,
+            status: error.response?.status || null,
+            detail: error.response?.data || null,
         });
     }
 });
