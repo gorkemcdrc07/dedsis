@@ -58,6 +58,44 @@ export default function AnaPanelSayfasi() {
         };
     }, [loading]);
 
+    const fetchAllPages = async (payload) => {
+        let currentPage = 1;
+        let totalPages = 1;
+        let allItems = [];
+
+        while (currentPage <= totalPages) {
+            const resp = await fetch("https://dedsis.onrender.com/api/get-data", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    ...payload,
+                    page: currentPage,
+                }),
+            });
+
+            if (!resp.ok) {
+                const errData = await resp.json().catch(() => ({}));
+                throw new Error(
+                    errData?.detail
+                        ? `API Hatası: ${JSON.stringify(errData.detail)}`
+                        : errData?.message || `API Hatası: HTTP ${resp.status}`
+                );
+            }
+
+            const result = await resp.json();
+
+            const items = Array.isArray(result?.items) ? result.items : [];
+            const pagination = result?.pagination || {};
+
+            allItems = allItems.concat(items);
+            totalPages = Number(pagination.totalPages || 1);
+
+            currentPage += 1;
+        }
+
+        return allItems;
+    };
+
     const fetchData = async () => {
         if (loading) return;
 
@@ -66,22 +104,21 @@ export default function AnaPanelSayfasi() {
         setElapsed(0);
 
         try {
+            const payload = {
+                startDate: `${startDate}T00:00:00`,
+                endDate: `${endDate}T23:59:59`,
+                userId: 1,
+            };
+
             const [
-                apiResp,
+                apiItems,
                 { data: projelerData, error: projelerError },
                 { data: projeDagilimData, error: projeDagilimError },
                 { data: muhasebeData, error: muhasebeError },
                 { data: ikData, error: ikError },
             ] = await Promise.all([
-                fetch("https://dedsis.onrender.com/api/get-data", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        startDate: `${startDate}T00:00:00`,
-                        endDate: `${endDate}T23:59:59`,
-                        userId: 1,
-                    }),
-                }),
+                fetchAllPages(payload),
+
                 supabase
                     .from("projeler")
                     .select("id, proje_adi, reel_proje_adi")
@@ -90,7 +127,7 @@ export default function AnaPanelSayfasi() {
                 supabase
                     .from("proje_dagilim_yeni")
                     .select("kaynak_tablo, kayit_id, kullanici_id, kullanici_adi, proje_id, proje_adi, reel_proje_adi, donem_yil, donem_ay, hesap_adi, alt_kalem, tutar, dagilim_orani, asil_tutar")
-                    .eq("donem_ay", Number(selectedMonth)), // ✅
+                    .eq("donem_ay", Number(selectedMonth)),
 
                 supabase
                     .from("muhasebe")
@@ -102,15 +139,7 @@ export default function AnaPanelSayfasi() {
                     .select("*")
                     .eq("donem_ayi", selectedMonth),
             ]);
-            if (!apiResp.ok) {
-                const errData = await apiResp.json().catch(() => ({}));
 
-                throw new Error(
-                    errData?.detail
-                        ? `API Hatası: ${JSON.stringify(errData.detail)}`
-                        : errData?.message || `API Hatası: HTTP ${apiResp.status}`
-                );
-            }
             if (projelerError || projeDagilimError || muhasebeError || ikError) {
                 throw new Error(
                     projelerError?.message ||
@@ -121,8 +150,7 @@ export default function AnaPanelSayfasi() {
                 );
             }
 
-            const apiResult = await apiResp.json();
-            const normalized = normalizeRows(Array.isArray(apiResult) ? apiResult : []);
+            const normalized = normalizeRows(Array.isArray(apiItems) ? apiItems : []);
 
             const allowedProjectSet = new Set(
                 (projelerData || [])
@@ -216,6 +244,7 @@ export default function AnaPanelSayfasi() {
             toplamMaliyet: toplamMuhasebe + toplamIk,
         };
     }, [rows, projeDagilimRows, muhasebeRows, ikRows]);
+
     return (
         <div className="app">
             <div className="topbar">
@@ -303,7 +332,6 @@ export default function AnaPanelSayfasi() {
                         ))}
                     </div>
 
-
                     {loading ? (
                         <div className="loading">
                             <div className="spin" />
@@ -321,48 +349,48 @@ export default function AnaPanelSayfasi() {
                     ) : (
                         <>
                             {tab === "overview" && (
-                                        <OzetGorunumu
-                                            projects={projects}
-                                            rows={rows}
-                                            muhasebeRows={muhasebeRows}
-                                            ikRows={ikRows}
-                                            projeDagilimRows={projeDagilimRows}
-                                            selectedMonth={selectedMonth}
-                                        />
-                                    )}
+                                <OzetGorunumu
+                                    projects={projects}
+                                    rows={rows}
+                                    muhasebeRows={muhasebeRows}
+                                    ikRows={ikRows}
+                                    projeDagilimRows={projeDagilimRows}
+                                    selectedMonth={selectedMonth}
+                                />
+                            )}
 
                             {tab === "projects" && (
                                 <>
                                     {tableView === 1 ? (
-                                                <ProjeTablosu
-                                                    projects={projects}
-                                                    allRows={rows}
-                                                    projeDagilimRows={projeDagilimRows}
-                                                    selectedMonth={selectedMonth}
-                                                />
-                                            ) : (
-                                                    <ProjeTablosu2
-                                                        projects={projects}
-                                                        allRows={rows}
-                                                        projeDagilimRows={projeDagilimRows}
-                                                        selectedMonth={selectedMonth}
-                                                />
-                                            )}
+                                        <ProjeTablosu
+                                            projects={projects}
+                                            allRows={rows}
+                                            projeDagilimRows={projeDagilimRows}
+                                            selectedMonth={selectedMonth}
+                                        />
+                                    ) : (
+                                        <ProjeTablosu2
+                                            projects={projects}
+                                            allRows={rows}
+                                            projeDagilimRows={projeDagilimRows}
+                                            selectedMonth={selectedMonth}
+                                        />
+                                    )}
                                 </>
                             )}
 
                             {tab === "compare" && <DonemKarsilastirma />}
 
                             {tab === "ai" && (
-                                        <YapayZekaAnalizi
-                                            projects={projects}
-                                            rows={rows}
-                                            muhasebeRows={muhasebeRows}
-                                            ikRows={ikRows}
-                                            projeDagilimRows={projeDagilimRows}
-                                            selectedMonth={selectedMonth}
-                                        />
-                                    )}
+                                <YapayZekaAnalizi
+                                    projects={projects}
+                                    rows={rows}
+                                    muhasebeRows={muhasebeRows}
+                                    ikRows={ikRows}
+                                    projeDagilimRows={projeDagilimRows}
+                                    selectedMonth={selectedMonth}
+                                />
+                            )}
                         </>
                     )}
                 </div>

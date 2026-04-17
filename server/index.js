@@ -24,10 +24,14 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 
 const API_URL = process.env.API_URL;
 const TOKEN = process.env.API_TOKEN;
+const PAGE_SIZE = 5000;
+
+// basit geçici bellek cache
+const requestCache = new Map();
 
 function extractArray(data) {
     if (Array.isArray(data)) return data;
@@ -68,6 +72,20 @@ function splitDateRange(startDateStr, endDateStr, chunkDays = 5) {
     return ranges;
 }
 
+function getCacheKey({ startDate, endDate, userId }) {
+    return JSON.stringify({ startDate, endDate, userId });
+}
+
+function cleanupOldCache(maxAgeMs = 1000 * 60 * 30) {
+    const now = Date.now();
+
+    for (const [key, value] of requestCache.entries()) {
+        if (!value?.createdAt || now - value.createdAt > maxAgeMs) {
+            requestCache.delete(key);
+        }
+    }
+}
+
 app.get("/", (req, res) => {
     res.send("Backend çalışıyor");
 });
@@ -82,6 +100,8 @@ app.get("/api/test", (req, res) => {
 });
 
 app.post("/api/get-data", async (req, res) => {
+    cleanupOldCache();
+
     try {
         console.log("📤 req.body:", req.body);
         console.log("API_URL:", API_URL);
@@ -99,7 +119,7 @@ app.post("/api/get-data", async (req, res) => {
             });
         }
 
-        const { startDate, endDate, userId } = req.body || {};
+        const { startDate, endDate, userId, page = 1 } = req.body || {};
 
         if (!startDate || !endDate) {
             return res.status(400).json({
@@ -107,53 +127,91 @@ app.post("/api/get-data", async (req, res) => {
             });
         }
 
-        const chunks = splitDateRange(startDate, endDate, 5);
-        console.log("🧩 Parça sayısı:", chunks.length, chunks);
+        const cacheKey = getCacheKey({ startDate, endDate, userId });
 
-        let allData = [];
+        let cached = requestCache.get(cacheKey);
 
-        for (let i = 0; i < chunks.length; i++) {
-            const chunk = chunks[i];
+        if (!cached) {
+            const chunks = splitDateRange(startDate, endDate, 5);
+            console.log("🧩 Parça sayısı:", chunks.length, chunks);
 
-            const chunkBody = {
-                startDate: chunk.startDate,
-                endDate: chunk.endDate,
-                userId,
+            let allData = [];
+
+            for (let i = 0; i < chunks.length; i++) {
+                const chunk = chunks[i];
+
+                const chunkBody = {
+                    startDate: chunk.startDate,
+                    endDate: chunk.endDate,
+                    userId,
+                };
+
+                try {
+                    console.log(`⏳ Parça ${i + 1}/${chunks.length} başlıyor`, chunkBody);
+
+                    const response = await axios.post(API_URL, chunkBody, {
+                        headers: {
+                            Authorization: `Bearer ${TOKEN}`,
+                            "Content-Type": "application/json",
+                        },
+                        timeout: 0,
+                        maxContentLength: Infinity,
+                        maxBodyLength: Infinity,
+                    });
+
+                    console.log(`✅ Parça ${i + 1}/${chunks.length} cevap verdi`);
+
+                    const partData = extractArray(response.data);
+
+                    console.log(`📦 Parça ${i + 1} kayıt sayısı:`, partData.length);
+
+                    allData = allData.concat(partData);
+                } catch (chunkError) {
+                    console.error(`❌ Parça ${i + 1}/${chunks.length} patladı`);
+                    console.error("chunk body:", chunkBody);
+                    console.error("message:", chunkError.message);
+                    console.error("code:", chunkError.code);
+                    console.error("status:", chunkError.response?.status);
+                    console.error("data:", chunkError.response?.data);
+
+                    throw chunkError;
+                }
+            }
+
+            console.log("📊 TOPLAM ARRAY LENGTH:", allData.length);
+
+            cached = {
+                createdAt: Date.now(),
+                data: allData,
             };
 
-            try {
-                console.log(`⏳ Parça ${i + 1}/${chunks.length} başlıyor`, chunkBody);
-
-                const response = await axios.post(API_URL, chunkBody, {
-                    headers: {
-                        Authorization: `Bearer ${TOKEN}`,
-                        "Content-Type": "application/json",
-                    },
-                    timeout: 0,
-                });
-
-                console.log(`✅ Parça ${i + 1}/${chunks.length} cevap verdi`);
-
-                const partData = extractArray(response.data);
-
-                console.log(`📦 Parça ${i + 1} kayıt sayısı:`, partData.length);
-
-                allData = allData.concat(partData);
-            } catch (chunkError) {
-                console.error(`❌ Parça ${i + 1}/${chunks.length} patladı`);
-                console.error("chunk body:", chunkBody);
-                console.error("message:", chunkError.message);
-                console.error("code:", chunkError.code);
-                console.error("status:", chunkError.response?.status);
-                console.error("data:", chunkError.response?.data);
-
-                throw chunkError;
-            }
+            requestCache.set(cacheKey, cached);
+        } else {
+            console.log("⚡ Cache kullanıldı:", cacheKey);
         }
 
-        console.log("📊 TOPLAM ARRAY LENGTH:", allData.length);
+        const totalCount = cached.data.length;
+        const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+        const safePage = Math.min(Math.max(Number(page) || 1, 1), totalPages);
 
-        res.status(200).json(allData);
+        const startIndex = (safePage - 1) * PAGE_SIZE;
+        const endIndex = startIndex + PAGE_SIZE;
+        const pageData = cached.data.slice(startIndex, endIndex);
+
+        console.log(
+            `📄 Sayfa dönülüyor: ${safePage}/${totalPages} - kayıt ${startIndex}..${endIndex - 1}`
+        );
+
+        return res.status(200).json({
+            items: pageData,
+            pagination: {
+                page: safePage,
+                pageSize: PAGE_SIZE,
+                totalCount,
+                totalPages,
+                hasNextPage: safePage < totalPages,
+            },
+        });
     } catch (error) {
         console.error("❌ PROXY ERROR");
         console.error("message:", error.message);
