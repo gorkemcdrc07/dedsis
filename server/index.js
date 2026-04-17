@@ -11,6 +11,8 @@ const allowedOrigins = [
 
 const corsOptions = {
     origin: function (origin, callback) {
+        console.log("Origin:", origin);
+
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
@@ -22,7 +24,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(express.json());
 
 const API_URL = process.env.API_URL;
@@ -59,14 +61,17 @@ app.post("/api/get-data", async (req, res) => {
             });
         }
 
+        console.log("⏳ dış API isteği başlıyor...");
+
         const response = await axios.post(API_URL, req.body, {
             headers: {
                 Authorization: `Bearer ${TOKEN}`,
                 "Content-Type": "application/json",
             },
-            timeout: 0, // sınırsız bekle
+            timeout: 15000,
         });
 
+        console.log("✅ dış API cevap verdi");
         console.log("📥 RAW RESPONSE:", response.data);
 
         let data = response.data;
@@ -93,6 +98,7 @@ app.post("/api/get-data", async (req, res) => {
     } catch (error) {
         console.error("❌ PROXY ERROR");
         console.error("message:", error.message);
+        console.error("code:", error.code);
         console.error("status:", error.response?.status);
         console.error("data:", error.response?.data);
         console.error("API_URL:", API_URL);
@@ -101,6 +107,7 @@ app.post("/api/get-data", async (req, res) => {
         res.status(500).json({
             error: "API error",
             message: error.message,
+            code: error.code || null,
             status: error.response?.status || null,
             detail: error.response?.data || null,
         });
