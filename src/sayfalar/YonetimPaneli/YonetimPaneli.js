@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
-    LayoutDashboard, Download, Plus, Search, ArrowUpDown,
+    Download, Plus, Search, ArrowUpDown,
     Pencil, Ban, Trash2, Save, X, ChevronDown, ChevronRight,
     Check, Shield, Users, Activity, Zap, Command, Layers,
-    ToggleLeft, ToggleRight, AlertTriangle, UserCheck, UserX,
-    Fingerprint, Grid3x3, Eye, Lock, Unlock, Sparkles
+    AlertTriangle, UserCheck, UserX,
+    Fingerprint, Grid3x3, Eye, Lock, Unlock
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
@@ -21,7 +21,6 @@ const COLOR_MAP = {
 
 const BOS_FORM = { id: null, kullanici_adi: "", kullanici: "", sifre: "" };
 
-/* ─── Utility ─── */
 const avatarOlustur = (ad) => {
     if (!ad) return "KU";
     return ad.split(" ").map((k) => k[0]).join("").slice(0, 2).toUpperCase();
@@ -38,11 +37,7 @@ const satirDonustur = (u, index = 0) => ({
     renk: PALETTE[index % PALETTE.length],
 });
 
-/* ════════════════════════════════════════════════
-   ANA BILEŞEN
-════════════════════════════════════════════════ */
 export default function YonetimPaneliSayfasi() {
-    /* ─ state ─ */
     const [kullanicilar, setKullanicilar] = useState([]);
     const [arama, setArama] = useState("");
     const [sayfa, setSayfa] = useState(1);
@@ -70,74 +65,161 @@ export default function YonetimPaneliSayfasi() {
         { mesaj: "Yönetim paneli açıldı", zaman: "Az önce", renk: "emerald" },
     ]);
     const [komutPaleti, setKomutPaleti] = useState(false);
-    const [aktifSekme, setAktifSekme] = useState("yetki"); // "yetki" | "profil"
+    const [aktifSekme, setAktifSekme] = useState("yetki");
     const aramaRef = useRef(null);
 
-    /* ─ log ─ */
     const logEkle = (mesaj, renk = "cyan") => {
-        const saat = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+        const saat = new Date().toLocaleTimeString("tr-TR", {
+            hour: "2-digit",
+            minute: "2-digit",
+        });
         setLoglar((prev) => [{ mesaj, zaman: saat, renk }, ...prev.slice(0, 9)]);
     };
 
-    /* ─ panel helpers ─ */
-    const paneliKapat = () => { setPanelAcik(false); setPanelModu(""); setPanelKullanici(null); setFormVerisi(BOS_FORM); };
-    const formDegistir = (alan, deger) => setFormVerisi((prev) => ({ ...prev, [alan]: deger }));
-    const toggleEkranAcikligi = (kod) => setAcikEkranKodlari((prev) => prev.includes(kod) ? prev.filter((x) => x !== kod) : [...prev, kod]);
-    const toggleOgeAcikligi = (kod) => setAcikOgeKodlari((prev) => prev.includes(kod) ? prev.filter((x) => x !== kod) : [...prev, kod]);
+    const paneliKapat = () => {
+        setPanelAcik(false);
+        setPanelModu("");
+        setPanelKullanici(null);
+        setFormVerisi(BOS_FORM);
+    };
 
-    /* ─ yetki key ─ */
+    const formDegistir = (alan, deger) => {
+        setFormVerisi((prev) => ({ ...prev, [alan]: deger }));
+    };
+
+    const toggleEkranAcikligi = (kod) => {
+        setAcikEkranKodlari((prev) =>
+            prev.includes(kod) ? prev.filter((x) => x !== kod) : [...prev, kod]
+        );
+    };
+
+    const toggleOgeAcikligi = (kod) => {
+        setAcikOgeKodlari((prev) =>
+            prev.includes(kod) ? prev.filter((x) => x !== kod) : [...prev, kod]
+        );
+    };
+
     const yetkiAnahtari = (ekranKod, ogeKod = null, alanKod = null) => {
         if (alanKod) return `${ekranKod}__${ogeKod}__${alanKod}`;
         if (ogeKod) return `${ekranKod}__${ogeKod}`;
         return ekranKod;
     };
+
     const ekranYetkiDurumu = (k) => !!yetkiler[yetkiAnahtari(k)];
     const ogeYetkiDurumu = (ek, og) => !!yetkiler[yetkiAnahtari(ek, og)];
     const alanYetkiDurumu = (ek, og, al) => !!yetkiler[yetkiAnahtari(ek, og, al)];
 
-    /* ─ supabase fetches ─ */
-    const seciliKullaniciYetkileriniGetir = async (kullaniciId) => {
-        if (!kullaniciId) { setYetkiler({}); return; }
+    const seciliKullaniciYetkileriniGetir = useCallback(async (kullaniciId) => {
+        if (!kullaniciId) {
+            setYetkiler({});
+            return;
+        }
+
         const { data, error } = await supabase
             .from("kullanici_yetkileri")
-            .select(`id, aktif, ekran_id, ekran_ogesi_id, ekran_alani_id,
-                ekranlar:ekran_id(id,kod), ekran_ogeleri:ekran_ogesi_id(id,kod), ekran_alanlari:ekran_alani_id(id,kod)`)
+            .select(`
+                id,
+                aktif,
+                ekran_id,
+                ekran_ogesi_id,
+                ekran_alani_id,
+                ekranlar:ekran_id(id,kod),
+                ekran_ogeleri:ekran_ogesi_id(id,kod),
+                ekran_alanlari:ekran_alani_id(id,kod)
+            `)
             .eq("kullanici_id", kullaniciId);
-        if (error) { setHata("Yetkiler alınamadı."); return; }
+
+        if (error) {
+            setHata("Yetkiler alınamadı.");
+            return;
+        }
+
         const yeni = {};
         (data || []).forEach((k) => {
-            const ek = k.ekranlar?.kod; const og = k.ekran_ogeleri?.kod; const al = k.ekran_alanlari?.kod;
+            const ek = k.ekranlar?.kod;
+            const og = k.ekran_ogeleri?.kod;
+            const al = k.ekran_alanlari?.kod;
             if (!ek) return;
             yeni[yetkiAnahtari(ek, og, al)] = !!k.aktif;
         });
+
         setYetkiler(yeni);
-    };
+    }, []);
 
     const referansTablolariHazirla = async () => {
-        const { data: ekD, error: ekE } = await supabase.from("ekranlar").select("id,kod,ad");
-        if (ekE) { setHata("ekranlar okunamadı."); return false; }
-        const ekS = {}; (ekD || []).forEach((e) => { ekS[e.kod] = e.id; });
-        setEkranMap(ekS); setEkranlar(ekD || []);
+        const { data: ekD, error: ekE } = await supabase
+            .from("ekranlar")
+            .select("id,kod,ad");
 
-        const { data: ogD, error: ogE } = await supabase.from("ekran_ogeleri").select("id,kod,ad,ekran_id");
-        if (ogE) { setHata("ekran_ogeleri okunamadı."); return false; }
-        const ogS = {}; (ogD || []).forEach((o) => { ogS[o.kod] = { id: o.id, ekran_id: o.ekran_id, ad: o.ad }; });
-        setOgeMap(ogS); setEkranOgeleri(ogD || []);
+        if (ekE) {
+            setHata("ekranlar okunamadı.");
+            return false;
+        }
 
-        const { data: alD, error: alE } = await supabase.from("ekran_alanlari").select("id,kod,ad,ekran_ogesi_id");
-        if (alE) { setHata("ekran_alanlari okunamadı."); return false; }
-        const alS = {}; (alD || []).forEach((a) => { alS[a.kod] = { id: a.id, ekran_ogesi_id: a.ekran_ogesi_id, ad: a.ad }; });
-        setAlanMap(alS); setEkranAlanlari(alD || []);
+        const ekS = {};
+        (ekD || []).forEach((e) => {
+            ekS[e.kod] = e.id;
+        });
+        setEkranMap(ekS);
+        setEkranlar(ekD || []);
+
+        const { data: ogD, error: ogE } = await supabase
+            .from("ekran_ogeleri")
+            .select("id,kod,ad,ekran_id");
+
+        if (ogE) {
+            setHata("ekran_ogeleri okunamadı.");
+            return false;
+        }
+
+        const ogS = {};
+        (ogD || []).forEach((o) => {
+            ogS[o.kod] = { id: o.id, ekran_id: o.ekran_id, ad: o.ad };
+        });
+        setOgeMap(ogS);
+        setEkranOgeleri(ogD || []);
+
+        const { data: alD, error: alE } = await supabase
+            .from("ekran_alanlari")
+            .select("id,kod,ad,ekran_ogesi_id");
+
+        if (alE) {
+            setHata("ekran_alanlari okunamadı.");
+            return false;
+        }
+
+        const alS = {};
+        (alD || []).forEach((a) => {
+            alS[a.kod] = {
+                id: a.id,
+                ekran_ogesi_id: a.ekran_ogesi_id,
+                ad: a.ad,
+            };
+        });
+        setAlanMap(alS);
+        setEkranAlanlari(alD || []);
+
         return true;
     };
 
-    const ekranYapisi = useMemo(() => ekranlar.map((ekran, i) => ({
-        kod: ekran.kod, ad: ekran.ad, renk: PALETTE[i % PALETTE.length],
-        ogeler: ekranOgeleri.filter((o) => o.ekran_id === ekran.id).map((oge) => ({
-            kod: oge.kod, ad: oge.ad,
-            alanlar: ekranAlanlari.filter((a) => a.ekran_ogesi_id === oge.id).map((a) => ({ kod: a.kod, ad: a.ad })),
-        })),
-    })), [ekranlar, ekranOgeleri, ekranAlanlari]);
+    const ekranYapisi = useMemo(
+        () =>
+            ekranlar.map((ekran, i) => ({
+                kod: ekran.kod,
+                ad: ekran.ad,
+                renk: PALETTE[i % PALETTE.length],
+                ogeler: ekranOgeleri
+                    .filter((o) => o.ekran_id === ekran.id)
+                    .map((oge) => ({
+                        kod: oge.kod,
+                        ad: oge.ad,
+                        alanlar: ekranAlanlari
+                            .filter((a) => a.ekran_ogesi_id === oge.id)
+                            .map((a) => ({ kod: a.kod, ad: a.ad })),
+                    })),
+            })),
+        [ekranlar, ekranOgeleri, ekranAlanlari]
+    );
 
     const kullanicilariGetir = async () => {
         setYukleniyor(true); setHata("");
@@ -154,9 +236,11 @@ export default function YonetimPaneliSayfasi() {
     }, []);
 
     useEffect(() => {
-        if (seciliKullanici?.id) seciliKullaniciYetkileriniGetir(seciliKullanici.id);
-        else setYetkiler({});
-    }, [seciliKullanici]);
+        if (seciliKullanici?.id)
+            seciliKullaniciYetkileriniGetir(seciliKullanici.id);
+        else
+            setYetkiler({});
+    }, [seciliKullanici, seciliKullaniciYetkileriniGetir]);
 
     /* ─ keyboard shortcut ─ */
     useEffect(() => {
@@ -179,8 +263,17 @@ export default function YonetimPaneliSayfasi() {
     const gosterilen = filtrelenmis.slice((sayfa - 1) * PER_PAGE, sayfa * PER_PAGE);
 
     /* ─ auto-expand ─ */
-    useEffect(() => { if (ekranYapisi.length > 0 && acikEkranKodlari.length === 0) setAcikEkranKodlari([ekranYapisi[0].kod]); }, [ekranYapisi]);
-    useEffect(() => { const oge = ekranYapisi[0]?.ogeler?.[0]; if (oge && acikOgeKodlari.length === 0) setAcikOgeKodlari([oge.kod]); }, [ekranYapisi]);
+    useEffect(() => {
+        if (ekranYapisi.length > 0 && acikEkranKodlari.length === 0) {
+            setAcikEkranKodlari([ekranYapisi[0].kod]);
+        }
+    }, [ekranYapisi, acikEkranKodlari.length]);
+    useEffect(() => {
+        const oge = ekranYapisi[0]?.ogeler?.[0];
+        if (oge && acikOgeKodlari.length === 0) {
+            setAcikOgeKodlari([oge.kod]);
+        }
+    }, [ekranYapisi, acikOgeKodlari.length]);
 
     /* ─ panel openers ─ */
     const yeniKullaniciPaneliAc = () => { setPanelModu("ekle"); setPanelKullanici(null); setFormVerisi(BOS_FORM); setPanelAcik(true); logEkle("Yeni kullanıcı paneli açıldı", "emerald"); };

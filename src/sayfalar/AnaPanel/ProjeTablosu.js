@@ -8,6 +8,8 @@ import PlateDetailModal from "./PlakaDetayPenceresi";
 const EXCLUDED_SERVICE_NAMES = ["HAKEDİŞ FARKI BEDELİ"];
 
 // ProjeTablosu.jsx içindeki ServiceBreakdown fonksiyonunu tamamen bu ile değiştirin
+const IK_KEYWORDS = ["ik", "personel", "maaş", "sgk", "işçi", "çalışan", "prim"];
+const MUH_KEYWORDS = ["muhasebe", "vergi", "kdv", "stopaj", "mali", "denetim", "fatura"];
 
 function ServiceBreakdown({
     details,
@@ -66,10 +68,8 @@ function ServiceBreakdown({
     }, [projeDagilimRows, selectedMonth]);
 
     // Kategori sınıflandırma
-    const IK_KEYWORDS = ["ik", "personel", "maaş", "sgk", "işçi", "çalışan", "prim"];
-    const MUH_KEYWORDS = ["muhasebe", "vergi", "kdv", "stopaj", "mali", "denetim", "fatura"];
 
-    const categorize = (item) => {
+    const categorize = React.useCallback((item) => {
         const text = `${item.hesap_adi} ${item.alt_kalem}`.toLowerCase();
         const kat = String(item.kategori || "").toLowerCase().trim();
 
@@ -80,14 +80,14 @@ function ServiceBreakdown({
         if (MUH_KEYWORDS.some((k) => text.includes(k))) return "muhasebe";
 
         return "diger";
-    };
+    }, []);
     const categorized = useMemo(() => {
         const groups = { ik: [], muhasebe: [], diger: [] };
         monthlyDagilim.forEach((item) => {
             groups[categorize(item)].push(item);
         });
         return groups;
-    }, [monthlyDagilim]);
+    }, [monthlyDagilim, categorize]);
 
     const CAT_CONFIG = [
         { key: "ik", label: "İK", color: "#7F77DD" },
