@@ -52,7 +52,7 @@ app.post("/api/get-data", async (req, res) => {
                 Authorization: `Bearer ${TOKEN}`,
                 "Content-Type": "application/json",
             },
-            timeout: 30000,
+            timeout: 0, // sınırsız bekle
         });
 
         console.log("📥 RAW RESPONSE:", response.data);

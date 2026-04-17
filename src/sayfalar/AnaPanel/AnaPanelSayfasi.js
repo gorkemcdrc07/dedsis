@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import "./anaPanel.css";
 import { supabase } from "../../lib/supabase";
 
@@ -37,15 +37,31 @@ export default function AnaPanelSayfasi() {
     const [error, setError] = useState("");
     const [tab, setTab] = useState("overview");
     const [tableView] = useState(1);
+    const [elapsed, setElapsed] = useState(0);
 
     const selectedMonth = useMemo(() => {
         if (!startDate) return "";
         return String(new Date(startDate).getMonth() + 1).padStart(2, "0");
     }, [startDate]);
 
+    useEffect(() => {
+        let intervalId;
+
+        if (loading) {
+            intervalId = setInterval(() => {
+                setElapsed((prev) => prev + 1);
+            }, 1000);
+        }
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [loading]);
+
     const fetchData = async () => {
         setLoading(true);
         setError("");
+        setElapsed(0);
 
         try {
             const [
@@ -291,6 +307,7 @@ export default function AnaPanelSayfasi() {
                         <div className="loading">
                             <div className="spin" />
                             <div>Veriler hazırlanıyor...</div>
+                            <div>{elapsed} saniyedir yükleniyor...</div>
                         </div>
                     ) : rows.length === 0 ? (
                         <div className="no-data">
