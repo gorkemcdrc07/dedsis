@@ -59,6 +59,8 @@ export default function AnaPanelSayfasi() {
     }, [loading]);
 
     const fetchData = async () => {
+        if (loading) return;
+
         setLoading(true);
         setError("");
         setElapsed(0);
@@ -80,7 +82,6 @@ export default function AnaPanelSayfasi() {
                         userId: 1,
                     }),
                 }),
-
                 supabase
                     .from("projeler")
                     .select("id, proje_adi, reel_proje_adi")

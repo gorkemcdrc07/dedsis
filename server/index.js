@@ -29,6 +29,45 @@ app.use(express.json());
 const API_URL = process.env.API_URL;
 const TOKEN = process.env.API_TOKEN;
 
+function extractArray(data) {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.data)) return data.data;
+    if (Array.isArray(data?.Data)) return data.Data;
+    if (Array.isArray(data?.result)) return data.result;
+    return [];
+}
+
+function splitDateRange(startDateStr, endDateStr, chunkDays = 5) {
+    const ranges = [];
+
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+
+    let currentStart = new Date(start);
+
+    while (currentStart <= end) {
+        const currentEnd = new Date(currentStart);
+        currentEnd.setDate(currentEnd.getDate() + chunkDays - 1);
+
+        if (currentEnd > end) {
+            currentEnd.setTime(end.getTime());
+        }
+
+        const startIso = new Date(currentStart).toISOString().slice(0, 19);
+        const endIso = new Date(currentEnd).toISOString().slice(0, 19);
+
+        ranges.push({
+            startDate: startIso,
+            endDate: endIso,
+        });
+
+        currentStart = new Date(currentEnd);
+        currentStart.setDate(currentStart.getDate() + 1);
+    }
+
+    return ranges;
+}
+
 app.get("/", (req, res) => {
     res.send("Backend çalışıyor");
 });
@@ -60,40 +99,61 @@ app.post("/api/get-data", async (req, res) => {
             });
         }
 
-        console.log("⏳ dış API isteği başlıyor...");
+        const { startDate, endDate, userId } = req.body || {};
 
-        const response = await axios.post(API_URL, req.body, {
-            headers: {
-                Authorization: `Bearer ${TOKEN}`,
-                "Content-Type": "application/json",
-            },
-            timeout: 0,
-        });
-
-        console.log("✅ dış API cevap verdi");
-        console.log("📥 RAW RESPONSE:", response.data);
-
-        let data = response.data;
-
-        if (Array.isArray(data)) {
-            console.log("✅ Direkt array geldi");
-        } else if (Array.isArray(data?.data)) {
-            console.log("✅ data.data kullanıldı");
-            data = data.data;
-        } else if (Array.isArray(data?.Data)) {
-            console.log("✅ data.Data kullanıldı");
-            data = data.Data;
-        } else if (Array.isArray(data?.result)) {
-            console.log("✅ data.result kullanıldı");
-            data = data.result;
-        } else {
-            console.log("⚠️ ARRAY BULUNAMADI:", data);
-            data = [];
+        if (!startDate || !endDate) {
+            return res.status(400).json({
+                error: "startDate ve endDate zorunlu",
+            });
         }
 
-        console.log("📊 FINAL ARRAY LENGTH:", data.length);
+        const chunks = splitDateRange(startDate, endDate, 5);
+        console.log("🧩 Parça sayısı:", chunks.length, chunks);
 
-        res.status(200).json(data);
+        let allData = [];
+
+        for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+
+            const chunkBody = {
+                startDate: chunk.startDate,
+                endDate: chunk.endDate,
+                userId,
+            };
+
+            try {
+                console.log(`⏳ Parça ${i + 1}/${chunks.length} başlıyor`, chunkBody);
+
+                const response = await axios.post(API_URL, chunkBody, {
+                    headers: {
+                        Authorization: `Bearer ${TOKEN}`,
+                        "Content-Type": "application/json",
+                    },
+                    timeout: 0,
+                });
+
+                console.log(`✅ Parça ${i + 1}/${chunks.length} cevap verdi`);
+
+                const partData = extractArray(response.data);
+
+                console.log(`📦 Parça ${i + 1} kayıt sayısı:`, partData.length);
+
+                allData = allData.concat(partData);
+            } catch (chunkError) {
+                console.error(`❌ Parça ${i + 1}/${chunks.length} patladı`);
+                console.error("chunk body:", chunkBody);
+                console.error("message:", chunkError.message);
+                console.error("code:", chunkError.code);
+                console.error("status:", chunkError.response?.status);
+                console.error("data:", chunkError.response?.data);
+
+                throw chunkError;
+            }
+        }
+
+        console.log("📊 TOPLAM ARRAY LENGTH:", allData.length);
+
+        res.status(200).json(allData);
     } catch (error) {
         console.error("❌ PROXY ERROR");
         console.error("message:", error.message);
@@ -111,6 +171,20 @@ app.post("/api/get-data", async (req, res) => {
             detail: error.response?.data || null,
         });
     }
+});
+
+app.use((err, req, res, next) => {
+    console.error("🔥 GLOBAL ERROR:", err.message);
+    console.error(err.stack);
+
+    if (res.headersSent) {
+        return next(err);
+    }
+
+    res.status(500).json({
+        error: "Sunucu hatası",
+        message: err.message,
+    });
 });
 
 const PORT = process.env.PORT || 5000;
