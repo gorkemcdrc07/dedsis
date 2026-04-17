@@ -24,7 +24,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
 app.use(express.json());
 
 const API_URL = process.env.API_URL;
@@ -68,7 +67,7 @@ app.post("/api/get-data", async (req, res) => {
                 Authorization: `Bearer ${TOKEN}`,
                 "Content-Type": "application/json",
             },
-            timeout: 15000,
+            timeout: 0,
         });
 
         console.log("✅ dış API cevap verdi");
