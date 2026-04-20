@@ -1,28 +1,17 @@
-import { useCallback, useEffect, useMemo, useState, useRef } from "react";
-import {
-    Download, Plus, Search, ArrowUpDown,
-    Pencil, Ban, Trash2, Save, X, ChevronDown, ChevronRight,
-    Check, Shield, Users, Activity, Zap, Command, Layers,
-    AlertTriangle, UserCheck, UserX,
-    Fingerprint, Grid3x3, Eye, Lock, Unlock
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import "./YonetimPaneli.css";
 
-const PALETTE = ["amber", "cyan", "violet", "emerald"];
-
-const COLOR_MAP = {
-    amber: { bg: "rgba(251,191,36,0.12)", border: "rgba(251,191,36,0.25)", text: "#fbbf24", dot: "#fbbf24" },
-    cyan: { bg: "rgba(34,211,238,0.12)", border: "rgba(34,211,238,0.25)", text: "#22d3ee", dot: "#22d3ee" },
-    violet: { bg: "rgba(167,139,250,0.12)", border: "rgba(167,139,250,0.25)", text: "#a78bfa", dot: "#a78bfa" },
-    emerald: { bg: "rgba(52,211,153,0.12)", border: "rgba(52,211,153,0.25)", text: "#34d399", dot: "#34d399" },
-    kirmizi: { bg: "rgba(239,68,68,0.12)", border: "rgba(239,68,68,0.25)", text: "#f87171", dot: "#f87171" },
-};
-
-const BOS_FORM = { id: null, kullanici_adi: "", kullanici: "", sifre: "" };
+const PALETTE = ["mor", "yesil", "mavi", "turuncu"];
 
 const avatarOlustur = (ad) => {
     if (!ad) return "KU";
-    return ad.split(" ").map((k) => k[0]).join("").slice(0, 2).toUpperCase();
+    return ad
+        .split(" ")
+        .map((k) => k[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase();
 };
 
 const satirDonustur = (u, index = 0) => ({
@@ -30,7 +19,7 @@ const satirDonustur = (u, index = 0) => ({
     ad: u.kullanici_adi || "İsimsiz",
     email: u.kullanici || "-",
     rol: "Kullanıcı",
-    durum: u.durum || "aktif",
+    durum: "aktif",
     giris: "Bilinmiyor",
     av: avatarOlustur(u.kullanici_adi),
     renk: PALETTE[index % PALETTE.length],
@@ -39,67 +28,19 @@ const satirDonustur = (u, index = 0) => ({
 export default function YonetimPaneliSayfasi() {
     const [kullanicilar, setKullanicilar] = useState([]);
     const [arama, setArama] = useState("");
-    const [sayfa, setSayfa] = useState(1);
-    const [yukleniyor, setYukleniyor] = useState(true);
-    const [hata, setHata] = useState("");
-    const [islemde, setIslemde] = useState(false);
-
     const [seciliKullanici, setSeciliKullanici] = useState(null);
-    const [acikEkranKodlari, setAcikEkranKodlari] = useState([]);
-    const [acikOgeKodlari, setAcikOgeKodlari] = useState([]);
-    const [yetkiler, setYetkiler] = useState({});
-
-    const [ekranMap, setEkranMap] = useState({});
-    const [ogeMap, setOgeMap] = useState({});
-    const [alanMap, setAlanMap] = useState({});
-
-    const [panelAcik, setPanelAcik] = useState(false);
-    const [panelModu, setPanelModu] = useState("");
-    const [panelKullanici, setPanelKullanici] = useState(null);
-    const [formVerisi, setFormVerisi] = useState(BOS_FORM);
 
     const [ekranlar, setEkranlar] = useState([]);
     const [ekranOgeleri, setEkranOgeleri] = useState([]);
     const [ekranAlanlari, setEkranAlanlari] = useState([]);
 
-    const [loglar, setLoglar] = useState([
-        { mesaj: "Yönetim paneli açıldı", zaman: "Az önce", renk: "emerald" },
-    ]);
+    const [yetkiler, setYetkiler] = useState({});
+    const [acikEkranlar, setAcikEkranlar] = useState({});
 
-    const [komutPaleti, setKomutPaleti] = useState(false);
-    const [aktifSekme, setAktifSekme] = useState("yetki");
-    const aramaRef = useRef(null);
-
-    const logEkle = (mesaj, renk = "cyan") => {
-        const saat = new Date().toLocaleTimeString("tr-TR", {
-            hour: "2-digit",
-            minute: "2-digit",
-        });
-        setLoglar((prev) => [{ mesaj, zaman: saat, renk }, ...prev.slice(0, 9)]);
-    };
-
-    const paneliKapat = () => {
-        setPanelAcik(false);
-        setPanelModu("");
-        setPanelKullanici(null);
-        setFormVerisi(BOS_FORM);
-    };
-
-    const formDegistir = (alan, deger) => {
-        setFormVerisi((prev) => ({ ...prev, [alan]: deger }));
-    };
-
-    const toggleEkranAcikligi = (kod) => {
-        setAcikEkranKodlari((prev) =>
-            prev.includes(kod) ? prev.filter((x) => x !== kod) : [...prev, kod]
-        );
-    };
-
-    const toggleOgeAcikligi = (kod) => {
-        setAcikOgeKodlari((prev) =>
-            prev.includes(kod) ? prev.filter((x) => x !== kod) : [...prev, kod]
-        );
-    };
+    const [yukleniyor, setYukleniyor] = useState(false);
+    const [kaydediliyor, setKaydediliyor] = useState(false);
+    const [hata, setHata] = useState("");
+    const [bilgi, setBilgi] = useState("");
 
     const yetkiAnahtari = (ekranKod, ogeKod = null, alanKod = null) => {
         if (alanKod) return `${ekranKod}__${ogeKod}__${alanKod}`;
@@ -107,21 +48,61 @@ export default function YonetimPaneliSayfasi() {
         return ekranKod;
     };
 
-    const ekranYetkiDurumu = (k) => !!yetkiler[yetkiAnahtari(k)];
-    const ogeYetkiDurumu = (ek, og) => !!yetkiler[yetkiAnahtari(ek, og)];
-    const alanYetkiDurumu = (ek, og, al) => !!yetkiler[yetkiAnahtari(ek, og, al)];
+    const ekranOgeleriMap = useMemo(() => {
+        const map = {};
+        ekranlar.forEach((e) => {
+            map[e.id] = ekranOgeleri.filter((o) => o.ekran_id === e.id);
+        });
+        return map;
+    }, [ekranlar, ekranOgeleri]);
 
-    const seciliKullaniciYetkileriniGetir = useCallback(async (kullaniciId) => {
+    const ogeAlanlariMap = useMemo(() => {
+        const map = {};
+        ekranOgeleri.forEach((o) => {
+            map[o.id] = ekranAlanlari.filter((a) => a.ekran_ogesi_id === o.id);
+        });
+        return map;
+    }, [ekranOgeleri, ekranAlanlari]);
+
+    const toplamAktifYetki = useMemo(
+        () => Object.values(yetkiler).filter(Boolean).length,
+        [yetkiler]
+    );
+
+    const filtrelenmis = useMemo(() => {
+        const m = arama.toLowerCase().trim();
+        if (!m) return kullanicilar;
+
+        return kullanicilar.filter(
+            (u) =>
+                String(u.ad || "").toLowerCase().includes(m) ||
+                String(u.email || "").toLowerCase().includes(m)
+        );
+    }, [kullanicilar, arama]);
+
+    const aktifKullaniciSayisi = useMemo(
+        () =>
+            kullanicilar.filter(
+                (k) => String(k.durum || "").toLowerCase() === "aktif"
+            ).length,
+        [kullanicilar]
+    );
+
+    const seciliKullaniciYetkileriniGetir = async (kullaniciId) => {
         if (!kullaniciId) {
             setYetkiler({});
             return;
         }
+
+        setHata("");
+        setBilgi("");
 
         const { data, error } = await supabase
             .from("kullanici_yetkileri")
             .select(`
                 id,
                 aktif,
+                yetki_durumu,
                 ekran_id,
                 ekran_ogesi_id,
                 ekran_alani_id,
@@ -129,10 +110,14 @@ export default function YonetimPaneliSayfasi() {
                 ekran_ogeleri:ekran_ogesi_id(id,kod),
                 ekran_alanlari:ekran_alani_id(id,kod)
             `)
-            .eq("kullanici_id", kullaniciId);
+            .eq("kullanici_id", kullaniciId)
+            .eq("aktif", true)
+            .eq("yetki_durumu", "izin_verildi");
 
         if (error) {
-            setHata("Yetkiler alınamadı.");
+            console.error("kullanici_yetkileri sorgu hatasi:", error);
+            setYetkiler({});
+            setHata(error.message || "Kullanıcı yetkileri alınamadı.");
             return;
         }
 
@@ -141,12 +126,13 @@ export default function YonetimPaneliSayfasi() {
             const ek = k.ekranlar?.kod;
             const og = k.ekran_ogeleri?.kod;
             const al = k.ekran_alanlari?.kod;
+
             if (!ek) return;
-            yeni[yetkiAnahtari(ek, og, al)] = !!k.aktif;
+            yeni[yetkiAnahtari(ek, og, al)] = true;
         });
 
         setYetkiler(yeni);
-    }, []);
+    };
 
     const referansTablolariHazirla = async () => {
         const { data: ekD, error: ekE } = await supabase
@@ -155,15 +141,9 @@ export default function YonetimPaneliSayfasi() {
             .order("id", { ascending: true });
 
         if (ekE) {
-            setHata("ekranlar okunamadı.");
+            console.error("ekranlar sorgu hatasi:", ekE);
             return false;
         }
-
-        const ekranMapTmp = {};
-        (ekD || []).forEach((e) => {
-            ekranMapTmp[e.kod] = e.id;
-        });
-        setEkranMap(ekranMapTmp);
         setEkranlar(ekD || []);
 
         const { data: ogD, error: ogE } = await supabase
@@ -172,15 +152,9 @@ export default function YonetimPaneliSayfasi() {
             .order("id", { ascending: true });
 
         if (ogE) {
-            setHata("ekran_ogeleri okunamadı.");
+            console.error("ekran_ogeleri sorgu hatasi:", ogE);
             return false;
         }
-
-        const ogeMapTmp = {};
-        (ogD || []).forEach((o) => {
-            ogeMapTmp[o.kod] = { id: o.id, ekran_id: o.ekran_id, ad: o.ad };
-        });
-        setOgeMap(ogeMapTmp);
         setEkranOgeleri(ogD || []);
 
         const { data: alD, error: alE } = await supabase
@@ -189,55 +163,25 @@ export default function YonetimPaneliSayfasi() {
             .order("id", { ascending: true });
 
         if (alE) {
-            setHata("ekran_alanlari okunamadı.");
+            console.error("ekran_alanlari sorgu hatasi:", alE);
             return false;
         }
-
-        const alanMapTmp = {};
-        (alD || []).forEach((a) => {
-            alanMapTmp[a.kod] = {
-                id: a.id,
-                ekran_ogesi_id: a.ekran_ogesi_id,
-                ad: a.ad,
-            };
-        });
-        setAlanMap(alanMapTmp);
         setEkranAlanlari(alD || []);
 
         return true;
     };
 
-    const ekranYapisi = useMemo(
-        () =>
-            ekranlar.map((ekran, i) => ({
-                kod: ekran.kod,
-                ad: ekran.ad,
-                renk: PALETTE[i % PALETTE.length],
-                ogeler: ekranOgeleri
-                    .filter((o) => o.ekran_id === ekran.id)
-                    .map((oge) => ({
-                        kod: oge.kod,
-                        ad: oge.ad,
-                        alanlar: ekranAlanlari
-                            .filter((a) => a.ekran_ogesi_id === oge.id)
-                            .map((a) => ({ kod: a.kod, ad: a.ad })),
-                    })),
-            })),
-        [ekranlar, ekranOgeleri, ekranAlanlari]
-    );
-
     const kullanicilariGetir = async () => {
-        setYukleniyor(true);
-        setHata("");
-
         const { data, error } = await supabase
             .from("kullanicilar")
-            .select("id,kullanici_adi,kullanici,sifre,durum")
+            .select("id,kullanici_adi,kullanici")
             .order("id", { ascending: true });
 
         if (error) {
-            setHata(error.message);
-            setYukleniyor(false);
+            console.error("kullanicilar sorgu hatasi:", error);
+            setHata(error.message || "Kullanıcı listesi alınamadı.");
+            setKullanicilar([]);
+            setSeciliKullanici(null);
             return;
         }
 
@@ -246,387 +190,657 @@ export default function YonetimPaneliSayfasi() {
         setSeciliKullanici((prev) =>
             prev ? list.find((k) => k.id === prev.id) || list[0] || null : list[0] || null
         );
-        setYukleniyor(false);
     };
 
     useEffect(() => {
         (async () => {
+            setYukleniyor(true);
+            setHata("");
+
             const ok = await referansTablolariHazirla();
-            if (ok) await kullanicilariGetir();
+            if (!ok) {
+                setHata("Referans tablolar yüklenemedi.");
+                setYukleniyor(false);
+                return;
+            }
+
+            await kullanicilariGetir();
+            setYukleniyor(false);
         })();
     }, []);
 
     useEffect(() => {
-        if (seciliKullanici?.id) seciliKullaniciYetkileriniGetir(seciliKullanici.id);
-        else setYetkiler({});
-    }, [seciliKullanici, seciliKullaniciYetkileriniGetir]);
-
-    useEffect(() => {
-        const handler = (e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-                e.preventDefault();
-                setKomutPaleti((p) => !p);
-            }
-            if (e.key === "Escape") {
-                setKomutPaleti(false);
-                paneliKapat();
-            }
-        };
-        window.addEventListener("keydown", handler);
-        return () => window.removeEventListener("keydown", handler);
-    }, []);
-
-    const filtrelenmis = useMemo(() => {
-        const m = arama.toLowerCase();
-        return kullanicilar.filter(
-            (u) =>
-                u.ad.toLowerCase().includes(m) ||
-                u.email.toLowerCase().includes(m)
-        );
-    }, [kullanicilar, arama]);
-
-    const PER_PAGE = 8;
-    const toplamSayfa = Math.max(1, Math.ceil(filtrelenmis.length / PER_PAGE));
-    const gosterilen = filtrelenmis.slice((sayfa - 1) * PER_PAGE, sayfa * PER_PAGE);
-
-    useEffect(() => {
-        if (ekranYapisi.length > 0 && acikEkranKodlari.length === 0) {
-            setAcikEkranKodlari([ekranYapisi[0].kod]);
+        if (ekranlar.length > 0) {
+            const varsayilan = {};
+            ekranlar.forEach((e) => {
+                varsayilan[e.id] = true;
+            });
+            setAcikEkranlar(varsayilan);
         }
-    }, [ekranYapisi, acikEkranKodlari.length]);
+    }, [ekranlar]);
 
     useEffect(() => {
-        const oge = ekranYapisi[0]?.ogeler?.[0];
-        if (oge && acikOgeKodlari.length === 0) {
-            setAcikOgeKodlari([oge.kod]);
+        if (seciliKullanici?.id) {
+            seciliKullaniciYetkileriniGetir(seciliKullanici.id);
+        } else {
+            setYetkiler({});
         }
-    }, [ekranYapisi, acikOgeKodlari.length]);
+    }, [seciliKullanici]);
 
-    const yeniKullaniciPaneliAc = () => {
-        setPanelModu("ekle");
-        setPanelKullanici(null);
-        setFormVerisi(BOS_FORM);
-        setPanelAcik(true);
-        logEkle("Yeni kullanıcı paneli açıldı", "emerald");
+    const ekranYetkisiVarMi = (ekranKod) => !!yetkiler[yetkiAnahtari(ekranKod)];
+    const ogeYetkisiVarMi = (ekranKod, ogeKod) =>
+        !!yetkiler[yetkiAnahtari(ekranKod, ogeKod)];
+    const alanYetkisiVarMi = (ekranKod, ogeKod, alanKod) =>
+        !!yetkiler[yetkiAnahtari(ekranKod, ogeKod, alanKod)];
+
+    const ebeveynleriDengele = (state, ekranKod, ogeKod = null) => {
+        const next = { ...state };
+
+        const ekran = ekranlar.find((e) => e.kod === ekranKod);
+        if (!ekran) return next;
+
+        const ogeler = ekranOgeleriMap[ekran.id] || [];
+
+        const ekranAktifMi =
+            next[yetkiAnahtari(ekranKod)] ||
+            ogeler.some((oge) => {
+                const ogeKey = yetkiAnahtari(ekranKod, oge.kod);
+                const alanlar = ogeAlanlariMap[oge.id] || [];
+                const alanAktif = alanlar.some((alan) =>
+                    next[yetkiAnahtari(ekranKod, oge.kod, alan.kod)]
+                );
+                return next[ogeKey] || alanAktif;
+            });
+
+        next[yetkiAnahtari(ekranKod)] = ekranAktifMi;
+
+        if (ogeKod) {
+            const oge = ogeler.find((o) => o.kod === ogeKod);
+            if (oge) {
+                const alanlar = ogeAlanlariMap[oge.id] || [];
+                const ogeAktifMi =
+                    next[yetkiAnahtari(ekranKod, ogeKod)] ||
+                    alanlar.some((alan) =>
+                        next[yetkiAnahtari(ekranKod, ogeKod, alan.kod)]
+                    );
+
+                next[yetkiAnahtari(ekranKod, ogeKod)] = ogeAktifMi;
+            }
+        }
+
+        return next;
     };
 
-    const duzenlemePaneliAc = async (kullanici) => {
-        setIslemde(true);
+    const ekranToggle = (ekran) => {
+        const ekranKod = ekran.kod;
+        const aktif = ekranYetkisiVarMi(ekranKod);
 
-        const { data, error } = await supabase
-            .from("kullanicilar")
-            .select("id,kullanici_adi,kullanici,sifre")
-            .eq("id", kullanici.id)
-            .single();
+        setYetkiler((prev) => {
+            const next = { ...prev };
+            const yeniDeger = !aktif;
 
-        setIslemde(false);
+            next[yetkiAnahtari(ekranKod)] = yeniDeger;
 
-        if (error) {
-            setHata(error.message);
-            return;
-        }
+            const ogeler = ekranOgeleriMap[ekran.id] || [];
+            ogeler.forEach((oge) => {
+                next[yetkiAnahtari(ekranKod, oge.kod)] = yeniDeger;
 
-        setFormVerisi({
-            id: data.id,
-            kullanici_adi: data.kullanici_adi || "",
-            kullanici: data.kullanici || "",
-            sifre: data.sifre || "",
+                const alanlar = ogeAlanlariMap[oge.id] || [];
+                alanlar.forEach((alan) => {
+                    next[yetkiAnahtari(ekranKod, oge.kod, alan.kod)] = yeniDeger;
+                });
+            });
+
+            return next;
+        });
+    };
+
+    const ogeToggle = (ekran, oge) => {
+        const ekranKod = ekran.kod;
+        const ogeKod = oge.kod;
+        const aktif = ogeYetkisiVarMi(ekranKod, ogeKod);
+
+        setYetkiler((prev) => {
+            const next = { ...prev };
+            const yeniDeger = !aktif;
+
+            next[yetkiAnahtari(ekranKod)] = yeniDeger ? true : next[yetkiAnahtari(ekranKod)];
+            next[yetkiAnahtari(ekranKod, ogeKod)] = yeniDeger;
+
+            const alanlar = ogeAlanlariMap[oge.id] || [];
+            alanlar.forEach((alan) => {
+                next[yetkiAnahtari(ekranKod, ogeKod, alan.kod)] = yeniDeger;
+            });
+
+            return ebeveynleriDengele(next, ekranKod, ogeKod);
+        });
+    };
+
+    const alanToggle = (ekran, oge, alan) => {
+        const ekranKod = ekran.kod;
+        const ogeKod = oge.kod;
+        const alanKod = alan.kod;
+        const aktif = alanYetkisiVarMi(ekranKod, ogeKod, alanKod);
+
+        setYetkiler((prev) => {
+            const next = { ...prev };
+            const yeniDeger = !aktif;
+
+            next[yetkiAnahtari(ekranKod, ogeKod, alanKod)] = yeniDeger;
+
+            if (yeniDeger) {
+                next[yetkiAnahtari(ekranKod)] = true;
+                next[yetkiAnahtari(ekranKod, ogeKod)] = true;
+            }
+
+            return ebeveynleriDengele(next, ekranKod, ogeKod);
+        });
+    };
+
+    const tumunuAcKapat = (durum) => {
+        const next = {};
+
+        ekranlar.forEach((ekran) => {
+            next[yetkiAnahtari(ekran.kod)] = durum;
+
+            const ogeler = ekranOgeleriMap[ekran.id] || [];
+            ogeler.forEach((oge) => {
+                next[yetkiAnahtari(ekran.kod, oge.kod)] = durum;
+
+                const alanlar = ogeAlanlariMap[oge.id] || [];
+                alanlar.forEach((alan) => {
+                    next[yetkiAnahtari(ekran.kod, oge.kod, alan.kod)] = durum;
+                });
+            });
         });
 
-        setPanelKullanici(kullanici);
-        setPanelModu("duzenle");
-        setPanelAcik(true);
-        logEkle(`${kullanici.ad} düzenleniyor`, "cyan");
+        setYetkiler(next);
     };
 
-    const engelPaneliAc = (u) => {
-        setPanelKullanici(u);
-        setPanelModu("engel");
-        setPanelAcik(true);
-    };
-
-    const silPaneliAc = (u) => {
-        setPanelKullanici(u);
-        setPanelModu("sil");
-        setPanelAcik(true);
-    };
-
-    const kullaniciKaydet = async () => {
-        if (
-            !formVerisi.kullanici_adi.trim() ||
-            !formVerisi.kullanici.trim() ||
-            !formVerisi.sifre.trim()
-        ) return;
-
-        setIslemde(true);
-
-        if (panelModu === "ekle") {
-            const { data, error } = await supabase
-                .from("kullanicilar")
-                .insert({
-                    kullanici_adi: formVerisi.kullanici_adi.trim(),
-                    kullanici: formVerisi.kullanici.trim(),
-                    sifre: formVerisi.sifre,
-                    durum: "aktif",
-                })
-                .select("id,kullanici_adi,kullanici,durum")
-                .single();
-
-            setIslemde(false);
-
-            if (error) {
-                setHata(error.message);
-                return;
-            }
-
-            const yeni = satirDonustur(data, kullanicilar.length);
-            setKullanicilar((prev) => [...prev, yeni]);
-            setSeciliKullanici(yeni);
-            paneliKapat();
-            logEkle(`${yeni.ad} eklendi`, "emerald");
+    const kaydet = async () => {
+        if (!seciliKullanici?.id) {
+            setHata("Önce bir kullanıcı seç.");
             return;
         }
 
-        const { data, error } = await supabase
-            .from("kullanicilar")
-            .update({
-                kullanici_adi: formVerisi.kullanici_adi.trim(),
-                kullanici: formVerisi.kullanici.trim(),
-                sifre: formVerisi.sifre,
-            })
-            .eq("id", formVerisi.id)
-            .select("id,kullanici_adi,kullanici,durum")
-            .single();
+        setKaydediliyor(true);
+        setHata("");
+        setBilgi("");
 
-        setIslemde(false);
+        try {
+            const aktifKayitlar = [];
 
-        if (error) {
-            setHata(error.message);
-            return;
-        }
+            ekranlar.forEach((ekran) => {
+                const ekranKey = yetkiAnahtari(ekran.kod);
 
-        const guncellendi = satirDonustur(data, 0);
-
-        setKullanicilar((prev) =>
-            prev.map((u, i) =>
-                u.id === guncellendi.id
-                    ? { ...guncellendi, renk: prev[i]?.renk, durum: prev[i]?.durum || "aktif" }
-                    : u
-            )
-        );
-
-        setSeciliKullanici((prev) =>
-            prev?.id === guncellendi.id ? { ...prev, ...guncellendi } : prev
-        );
-
-        paneliKapat();
-        logEkle(`${guncellendi.ad} güncellendi`, "cyan");
-    };
-
-    const kullaniciyiSilOnayla = async () => {
-        if (!panelKullanici) return;
-
-        setIslemde(true);
-
-        await supabase
-            .from("kullanici_yetkileri")
-            .delete()
-            .eq("kullanici_id", panelKullanici.id);
-
-        const { error } = await supabase
-            .from("kullanicilar")
-            .delete()
-            .eq("id", panelKullanici.id);
-
-        setIslemde(false);
-
-        if (error) {
-            setHata(error.message);
-            return;
-        }
-
-        setKullanicilar((prev) => prev.filter((u) => u.id !== panelKullanici.id));
-        if (seciliKullanici?.id === panelKullanici.id) setSeciliKullanici(null);
-
-        paneliKapat();
-        logEkle(`${panelKullanici.ad} silindi`, "kirmizi");
-    };
-
-    const kullaniciyiEngelleOnayla = async () => {
-        if (!panelKullanici) return;
-
-        const yeniDurum = panelKullanici.durum === "pasif" ? "aktif" : "pasif";
-
-        setIslemde(true);
-
-        const { error } = await supabase
-            .from("kullanicilar")
-            .update({ durum: yeniDurum })
-            .eq("id", panelKullanici.id);
-
-        setIslemde(false);
-
-        if (error) {
-            setHata(error.message);
-            return;
-        }
-
-        setKullanicilar((prev) =>
-            prev.map((u) => u.id === panelKullanici.id ? { ...u, durum: yeniDurum } : u)
-        );
-
-        if (seciliKullanici?.id === panelKullanici.id) {
-            setSeciliKullanici((prev) => prev ? { ...prev, durum: yeniDurum } : prev);
-        }
-
-        paneliKapat();
-        logEkle(
-            `${panelKullanici.ad} ${yeniDurum === "pasif" ? "engellendi" : "aktif edildi"}`,
-            yeniDurum === "pasif" ? "kirmizi" : "emerald"
-        );
-    };
-
-    const yetkiUpsert = async ({
-        kullanici_id,
-        ekran_id,
-        ekran_ogesi_id = null,
-        ekran_alani_id = null,
-        aktif
-    }) => {
-        return supabase
-            .from("kullanici_yetkileri")
-            .upsert(
-                {
-                    kullanici_id,
-                    ekran_id,
-                    ekran_ogesi_id,
-                    ekran_alani_id,
-                    aktif,
-                    updated_at: new Date().toISOString(),
-                },
-                {
-                    onConflict: "kullanici_id,ekran_id,ekran_ogesi_id,ekran_alani_id",
+                if (yetkiler[ekranKey]) {
+                    aktifKayitlar.push({
+                        kullanici_id: seciliKullanici.id,
+                        ekran_id: ekran.id,
+                        ekran_ogesi_id: null,
+                        ekran_alani_id: null,
+                        aktif: true,
+                        yetki_durumu: "izin_verildi",
+                    });
                 }
+
+                const ogeler = ekranOgeleriMap[ekran.id] || [];
+                ogeler.forEach((oge) => {
+                    const ogeKey = yetkiAnahtari(ekran.kod, oge.kod);
+
+                    if (yetkiler[ogeKey]) {
+                        aktifKayitlar.push({
+                            kullanici_id: seciliKullanici.id,
+                            ekran_id: ekran.id,
+                            ekran_ogesi_id: oge.id,
+                            ekran_alani_id: null,
+                            aktif: true,
+                            yetki_durumu: "izin_verildi",
+                        });
+                    }
+
+                    const alanlar = ogeAlanlariMap[oge.id] || [];
+                    alanlar.forEach((alan) => {
+                        const alanKey = yetkiAnahtari(ekran.kod, oge.kod, alan.kod);
+
+                        if (yetkiler[alanKey]) {
+                            aktifKayitlar.push({
+                                kullanici_id: seciliKullanici.id,
+                                ekran_id: ekran.id,
+                                ekran_ogesi_id: oge.id,
+                                ekran_alani_id: alan.id,
+                                aktif: true,
+                                yetki_durumu: "izin_verildi",
+                            });
+                        }
+                    });
+                });
+            });
+
+            const { error: silError } = await supabase
+                .from("kullanici_yetkileri")
+                .delete()
+                .eq("kullanici_id", seciliKullanici.id);
+
+            if (silError) throw silError;
+
+            if (aktifKayitlar.length > 0) {
+                const { error: ekleError } = await supabase
+                    .from("kullanici_yetkileri")
+                    .insert(aktifKayitlar);
+
+                if (ekleError) throw ekleError;
+            }
+
+            setBilgi(
+                `${seciliKullanici.ad} için ${aktifKayitlar.length} aktif yetki kaydedildi.`
             );
+            await seciliKullaniciYetkileriniGetir(seciliKullanici.id);
+        } catch (err) {
+            console.error("yetki kaydetme hatasi:", err);
+            setHata(err?.message || "Yetkiler kaydedilemedi.");
+        } finally {
+            setKaydediliyor(false);
+        }
     };
 
-    const toggleEkranYetkisi = async (ekranKod, aktifMi) => {
-        if (!seciliKullanici) return;
+    const ekranIstatistikleri = useMemo(() => {
+        return ekranlar.map((ekran) => {
+            const ogeler = ekranOgeleriMap[ekran.id] || [];
+            const alanlar = ogeler.flatMap((oge) => ogeAlanlariMap[oge.id] || []);
 
-        const ekranId = ekranMap[ekranKod];
-        if (!ekranId) {
-            setHata("Ekran eşleşmesi bulunamadı.");
-            return;
-        }
+            const aktifOge = ogeler.filter((oge) =>
+                ogeYetkisiVarMi(ekran.kod, oge.kod)
+            ).length;
 
-        setIslemde(true);
-        const { error } = await yetkiUpsert({
-            kullanici_id: seciliKullanici.id,
-            ekran_id: ekranId,
-            aktif: aktifMi,
+            const aktifAlan = alanlar.filter((alan) => {
+                const oge = ekranOgeleri.find((o) => o.id === alan.ekran_ogesi_id);
+                return oge
+                    ? alanYetkisiVarMi(ekran.kod, oge.kod, alan.kod)
+                    : false;
+            }).length;
+
+            return {
+                ekranId: ekran.id,
+                aktifMi: ekranYetkisiVarMi(ekran.kod),
+                aktifOge,
+                aktifAlan,
+            };
         });
-        setIslemde(false);
-
-        if (error) {
-            setHata(error.message);
-            return;
-        }
-
-        setYetkiler((prev) => ({ ...prev, [yetkiAnahtari(ekranKod)]: aktifMi }));
-        logEkle(`${ekranKod} ekranı ${aktifMi ? "açıldı" : "kapatıldı"}`, aktifMi ? "emerald" : "kirmizi");
-    };
-
-    const toggleOgeYetkisi = async (ekranKod, ogeKod, aktifMi) => {
-        if (!seciliKullanici) return;
-
-        const ekranId = ekranMap[ekranKod];
-        const oge = ogeMap[ogeKod];
-
-        if (!ekranId || !oge?.id) {
-            setHata("Öğe eşleşmesi bulunamadı.");
-            return;
-        }
-
-        setIslemde(true);
-        const { error } = await yetkiUpsert({
-            kullanici_id: seciliKullanici.id,
-            ekran_id: ekranId,
-            ekran_ogesi_id: oge.id,
-            aktif: aktifMi,
-        });
-        setIslemde(false);
-
-        if (error) {
-            setHata(error.message);
-            return;
-        }
-
-        setYetkiler((prev) => ({
-            ...prev,
-            [yetkiAnahtari(ekranKod, ogeKod)]: aktifMi,
-        }));
-
-        logEkle(`${ogeKod} ${aktifMi ? "açıldı" : "kapatıldı"}`, aktifMi ? "emerald" : "kirmizi");
-    };
-
-    const toggleAlanYetkisi = async (ekranKod, ogeKod, alanKod, aktifMi) => {
-        if (!seciliKullanici) return;
-
-        const ekranId = ekranMap[ekranKod];
-        const oge = ogeMap[ogeKod];
-        const alan = alanMap[alanKod];
-
-        if (!ekranId || !oge?.id || !alan?.id) {
-            setHata("Alan eşleşmesi bulunamadı.");
-            return;
-        }
-
-        setIslemde(true);
-        const { error } = await yetkiUpsert({
-            kullanici_id: seciliKullanici.id,
-            ekran_id: ekranId,
-            ekran_ogesi_id: oge.id,
-            ekran_alani_id: alan.id,
-            aktif: aktifMi,
-        });
-        setIslemde(false);
-
-        if (error) {
-            setHata(error.message);
-            return;
-        }
-
-        setYetkiler((prev) => ({
-            ...prev,
-            [yetkiAnahtari(ekranKod, ogeKod, alanKod)]: aktifMi,
-        }));
-
-        logEkle(`${alanKod} ${aktifMi ? "açıldı" : "kapatıldı"}`, aktifMi ? "emerald" : "kirmizi");
-    };
-
-    const ekraninTumOgeleriniAyarla = async (ekran, aktifMi) => {
-        for (const oge of ekran.ogeler) {
-            await toggleOgeYetkisi(ekran.kod, oge.kod, aktifMi);
-        }
-    };
-
-    const ogeninTumAlanlariniAyarla = async (ekranKod, oge, aktifMi) => {
-        if (!oge.alanlar?.length) return;
-        for (const alan of oge.alanlar) {
-            await toggleAlanYetkisi(ekranKod, oge.kod, alan.kod, aktifMi);
-        }
-    };
-
-    const istat = {
-        toplam: kullanicilar.length,
-        aktif: kullanicilar.filter((u) => u.durum === "aktif").length,
-        pasif: kullanicilar.filter((u) => u.durum === "pasif").length,
-        yetkiSayisi: Object.values(yetkiler).filter(Boolean).length,
-    };
+    }, [ekranlar, ekranOgeleriMap, ogeAlanlariMap, yetkiler, ekranOgeleri]);
 
     return (
-        <div>
-            Buraya mevcut JSX ve STYLES kısmını aynen bırak.
+        <div className="yp-sayfa">
+            <div className="yp-header">
+                <div>
+                    <h1 className="yp-baslik">Yönetim Paneli</h1>
+                    <p className="yp-alt">
+                        Kullanıcı seç, ekran/öğe/alan bazlı yetkileri düzenle ve kaydet.
+                    </p>
+                </div>
+
+                <div className="yp-header-aksiyonlar">
+                    <button className="yp-btn" onClick={() => tumunuAcKapat(true)}>
+                        Tüm Yetkileri Aç
+                    </button>
+                    <button className="yp-btn" onClick={() => tumunuAcKapat(false)}>
+                        Tüm Yetkileri Kapat
+                    </button>
+                    <button
+                        className="yp-btn yp-btn--primary"
+                        onClick={kaydet}
+                        disabled={!seciliKullanici || kaydediliyor}
+                    >
+                        {kaydediliyor ? "Kaydediliyor..." : "Kaydet"}
+                    </button>
+                </div>
+            </div>
+
+            {hata ? <div className="yp-hata-kutu">{hata}</div> : null}
+            {bilgi ? (
+                <div
+                    className="yp-hata-kutu"
+                    style={{
+                        background: "rgba(20, 83, 45, 0.22)",
+                        borderColor: "rgba(34, 197, 94, 0.28)",
+                        color: "#bbf7d0",
+                    }}
+                >
+                    {bilgi}
+                </div>
+            ) : null}
+
+            <div className="yp-stats">
+                <div className="yp-stat-kart">
+                    <div className="yp-stat-etiket">Toplam Kullanıcı</div>
+                    <div className="yp-stat-deger">{kullanicilar.length}</div>
+                    <span className="yp-badge yp-badge--mavi">Liste</span>
+                </div>
+
+                <div className="yp-stat-kart">
+                    <div className="yp-stat-etiket">Aktif Kullanıcı</div>
+                    <div className="yp-stat-deger">{aktifKullaniciSayisi}</div>
+                    <span className="yp-badge yp-badge--yesil">Durum</span>
+                </div>
+
+                <div className="yp-stat-kart">
+                    <div className="yp-stat-etiket">Toplam Ekran</div>
+                    <div className="yp-stat-deger">{ekranlar.length}</div>
+                    <span className="yp-badge yp-badge--turuncu">Referans</span>
+                </div>
+
+                <div className="yp-stat-kart">
+                    <div className="yp-stat-etiket">Aktif Yetki</div>
+                    <div className="yp-stat-deger">{toplamAktifYetki}</div>
+                    <span className="yp-badge yp-badge--yesil">Seçili Kullanıcı</span>
+                </div>
+            </div>
+
+            <div className="yp-ana-yerlesim">
+                <div className="yp-sol-panel">
+                    <div className="yp-kart">
+                        <div className="yp-kart-head">
+                            <div>
+                                <div className="yp-kart-baslik">Kullanıcılar</div>
+                                <div className="yp-secili-bilgi">
+                                    {filtrelenmis.length} kullanıcı listeleniyor
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="yp-toolbar">
+                            <div className="yp-arama">
+                                <span>⌕</span>
+                                <input
+                                    type="text"
+                                    placeholder="Kullanıcı ara..."
+                                    value={arama}
+                                    onChange={(e) => setArama(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="yp-kullanici-liste">
+                            {yukleniyor ? (
+                                <div className="yp-bos-alan">Yükleniyor...</div>
+                            ) : filtrelenmis.length === 0 ? (
+                                <div className="yp-bos-alan">Kullanıcı bulunamadı.</div>
+                            ) : (
+                                filtrelenmis.map((u) => (
+                                    <div
+                                        key={u.id}
+                                        className={`yp-kullanici-kart ${seciliKullanici?.id === u.id ? "secili" : ""}`}
+                                        onClick={() => setSeciliKullanici(u)}
+                                    >
+                                        <div className={`yp-avatar yp-avatar--${u.renk}`}>
+                                            {u.av}
+                                        </div>
+
+                                        <div className="yp-kullanici-kart-yazi">
+                                            <div className="yp-kullanici-ad">{u.ad}</div>
+                                            <div className="yp-kullanici-email">{u.email}</div>
+                                        </div>
+
+                                        <div className="yp-kullanici-kart-aksiyon">
+                                            <span
+                                                className={`yp-badge ${String(u.durum).toLowerCase() === "aktif"
+                                                        ? "yp-badge--yesil"
+                                                        : "yp-badge--kirmizi"
+                                                    }`}
+                                            >
+                                                {u.durum}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="yp-sag-panel">
+                    <div className="yp-kart">
+                        <div className="yp-kart-head">
+                            <div>
+                                <div className="yp-kart-baslik">Yetki Matrisi</div>
+                                <div className="yp-secili-bilgi">
+                                    {seciliKullanici
+                                        ? `${seciliKullanici.ad} • ${seciliKullanici.email}`
+                                        : "Seçili kullanıcı yok"}
+                                </div>
+                            </div>
+
+                            <div className="yp-header-aksiyonlar">
+                                <button
+                                    className="yp-btn yp-btn--sm"
+                                    onClick={() => tumunuAcKapat(true)}
+                                >
+                                    Hepsini Aç
+                                </button>
+                                <button
+                                    className="yp-btn yp-btn--sm"
+                                    onClick={() => tumunuAcKapat(false)}
+                                >
+                                    Hepsini Kapat
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="yp-ekran-matris">
+                            {ekranlar.length === 0 ? (
+                                <div className="yp-bos-alan">Ekran tanımı bulunamadı.</div>
+                            ) : (
+                                ekranlar.map((ekran) => {
+                                    const ogeler = ekranOgeleriMap[ekran.id] || [];
+                                    const ekranStat =
+                                        ekranIstatistikleri.find((s) => s.ekranId === ekran.id) || {};
+                                    const acik = !!acikEkranlar[ekran.id];
+
+                                    return (
+                                        <div className="yp-ekran-blok" key={ekran.id}>
+                                            <div className="yp-ekran-blok-ust">
+                                                <button
+                                                    className="yp-ekran-toggle"
+                                                    onClick={() =>
+                                                        setAcikEkranlar((prev) => ({
+                                                            ...prev,
+                                                            [ekran.id]: !prev[ekran.id],
+                                                        }))
+                                                    }
+                                                    type="button"
+                                                >
+                                                    {acik ? "−" : "+"}
+                                                </button>
+
+                                                <div className="yp-ekran-ikon yp-ekran-ikon--mor">
+                                                    🖥
+                                                </div>
+
+                                                <div className="yp-ekran-yazi">
+                                                    <div className="yp-ekran-ad">{ekran.ad}</div>
+                                                    <div className="yp-ekran-alt">
+                                                        {ogeler.length} öğe • {ekranStat.aktifAlan || 0} aktif alan
+                                                    </div>
+                                                </div>
+
+                                                <div className="yp-switch-wrap">
+                                                    <span className="yp-switch-label">
+                                                        {ekranYetkisiVarMi(ekran.kod) ? "Açık" : "Kapalı"}
+                                                    </span>
+                                                    <button
+                                                        className={`yp-switch ${ekranYetkisiVarMi(ekran.kod) ? "aktif" : ""}`}
+                                                        type="button"
+                                                        onClick={() => ekranToggle(ekran)}
+                                                    >
+                                                        <span className="yp-switch-top" />
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {acik && (
+                                                <div className="yp-ekran-icerik">
+                                                    <div className="yp-ekran-icerik-ust">
+                                                        <div className="yp-ekran-icerik-baslik">
+                                                            Ekran öğeleri
+                                                        </div>
+
+                                                        <div className="yp-toplu-btn-grup">
+                                                            <button
+                                                                className="yp-mini-btn"
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setYetkiler((prev) => {
+                                                                        const next = { ...prev };
+                                                                        next[yetkiAnahtari(ekran.kod)] = true;
+
+                                                                        ogeler.forEach((oge) => {
+                                                                            next[yetkiAnahtari(ekran.kod, oge.kod)] = true;
+                                                                            (ogeAlanlariMap[oge.id] || []).forEach((alan) => {
+                                                                                next[
+                                                                                    yetkiAnahtari(
+                                                                                        ekran.kod,
+                                                                                        oge.kod,
+                                                                                        alan.kod
+                                                                                    )
+                                                                                ] = true;
+                                                                            });
+                                                                        });
+
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                            >
+                                                                Tümünü Aç
+                                                            </button>
+
+                                                            <button
+                                                                className="yp-mini-btn"
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setYetkiler((prev) => {
+                                                                        const next = { ...prev };
+                                                                        next[yetkiAnahtari(ekran.kod)] = false;
+
+                                                                        ogeler.forEach((oge) => {
+                                                                            next[yetkiAnahtari(ekran.kod, oge.kod)] = false;
+                                                                            (ogeAlanlariMap[oge.id] || []).forEach((alan) => {
+                                                                                next[
+                                                                                    yetkiAnahtari(
+                                                                                        ekran.kod,
+                                                                                        oge.kod,
+                                                                                        alan.kod
+                                                                                    )
+                                                                                ] = false;
+                                                                            });
+                                                                        });
+
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                            >
+                                                                Tümünü Kapat
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="yp-oge-liste">
+                                                        {ogeler.length === 0 ? (
+                                                            <div className="yp-bos-alan">Bu ekranda öğe yok.</div>
+                                                        ) : (
+                                                            ogeler.map((oge) => {
+                                                                const alanlar = ogeAlanlariMap[oge.id] || [];
+                                                                const ogeAktif = ogeYetkisiVarMi(
+                                                                    ekran.kod,
+                                                                    oge.kod
+                                                                );
+
+                                                                return (
+                                                                    <div className="yp-oge-blok" key={oge.id}>
+                                                                        <div className="yp-oge-satir">
+                                                                            <div className="yp-oge-sol">
+                                                                                <span
+                                                                                    className={`yp-oge-durum ${ogeAktif ? "aktif" : ""}`}
+                                                                                >
+                                                                                    ✓
+                                                                                </span>
+                                                                                <span className="yp-oge-ad">
+                                                                                    {oge.ad}
+                                                                                </span>
+                                                                            </div>
+
+                                                                            <div className="yp-oge-sag">
+                                                                                <span className="yp-muted">
+                                                                                    {alanlar.length} alan
+                                                                                </span>
+                                                                                <button
+                                                                                    className={`yp-switch ${ogeAktif ? "aktif" : ""}`}
+                                                                                    type="button"
+                                                                                    onClick={() => ogeToggle(ekran, oge)}
+                                                                                >
+                                                                                    <span className="yp-switch-top" />
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {alanlar.length > 0 && (
+                                                                            <div className="yp-alan-liste">
+                                                                                {alanlar.map((alan) => {
+                                                                                    const alanAktif =
+                                                                                        alanYetkisiVarMi(
+                                                                                            ekran.kod,
+                                                                                            oge.kod,
+                                                                                            alan.kod
+                                                                                        );
+
+                                                                                    return (
+                                                                                        <div
+                                                                                            className="yp-alan-satir"
+                                                                                            key={alan.id}
+                                                                                        >
+                                                                                            <div className="yp-alan-sol">
+                                                                                                <span
+                                                                                                    className={`yp-oge-durum ${alanAktif ? "aktif" : ""}`}
+                                                                                                >
+                                                                                                    ✓
+                                                                                                </span>
+                                                                                                <span className="yp-alan-ad">
+                                                                                                    {alan.ad}
+                                                                                                </span>
+                                                                                            </div>
+
+                                                                                            <button
+                                                                                                className={`yp-switch ${alanAktif ? "aktif" : ""}`}
+                                                                                                type="button"
+                                                                                                onClick={() =>
+                                                                                                    alanToggle(
+                                                                                                        ekran,
+                                                                                                        oge,
+                                                                                                        alan
+                                                                                                    )
+                                                                                                }
+                                                                                            >
+                                                                                                <span className="yp-switch-top" />
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

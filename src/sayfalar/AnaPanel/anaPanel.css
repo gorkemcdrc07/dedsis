@@ -6,6 +6,7 @@
     padding: 0;
 }
 
+body,
 body[data-theme="light"] {
     --bg: #eef2f8;
     --surface: #ffffff;
@@ -36,36 +37,35 @@ body[data-theme="light"] {
     --font: 'Nunito', sans-serif;
 }
 
-body:not([data-theme="light"]) {
-    --bg: #0a0d14;
-    --surface: #10151f;
-    --surface2: #161c28;
-    --surface3: #1c2433;
-    --border: rgba(255,255,255,0.08);
-    --border2: rgba(255,255,255,0.12);
-    --text: #ffffff;
-    --text2: #d1d5db;
-    --text3: #9ca3af;
-    --accent: #6d4aff;
-    --accent-bg: rgba(109, 74, 255, 0.14);
-    --accent-bg-2: rgba(109, 74, 255, 0.10);
-    --accent-border: rgba(139, 92, 246, 0.32);
-    --green: #22c55e;
-    --green-bg: rgba(34,197,94,0.14);
-    --green-border: rgba(34,197,94,0.28);
-    --red: #f87171;
-    --red-bg: rgba(248,113,113,0.14);
-    --red-border: rgba(248,113,113,0.28);
-    --amber: #f59e0b;
-    --amber-bg: rgba(245,158,11,0.14);
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.35);
-    --shadow: 0 8px 24px rgba(0,0,0,0.35);
-    --shadow-md: 0 18px 48px rgba(0,0,0,0.46);
-    --radius: 18px;
-    --radius-sm: 12px;
-    --font: 'Nunito', sans-serif;
-}
-
+    body[data-theme="dark"] {
+        --bg: #0a0d14;
+        --surface: #10151f;
+        --surface2: #161c28;
+        --surface3: #1c2433;
+        --border: rgba(255,255,255,0.08);
+        --border2: rgba(255,255,255,0.12);
+        --text: #ffffff;
+        --text2: #d1d5db;
+        --text3: #9ca3af;
+        --accent: #6d4aff;
+        --accent-bg: rgba(109, 74, 255, 0.14);
+        --accent-bg-2: rgba(109, 74, 255, 0.10);
+        --accent-border: rgba(139, 92, 246, 0.32);
+        --green: #22c55e;
+        --green-bg: rgba(34,197,94,0.14);
+        --green-border: rgba(34,197,94,0.28);
+        --red: #f87171;
+        --red-bg: rgba(248,113,113,0.14);
+        --red-border: rgba(248,113,113,0.28);
+        --amber: #f59e0b;
+        --amber-bg: rgba(245,158,11,0.14);
+        --shadow-sm: 0 1px 2px rgba(0,0,0,0.35);
+        --shadow: 0 8px 24px rgba(0,0,0,0.35);
+        --shadow-md: 0 18px 48px rgba(0,0,0,0.46);
+        --radius: 18px;
+        --radius-sm: 12px;
+        --font: 'Nunito', sans-serif;
+    }
 html,
 body,
 #root {

@@ -5,9 +5,6 @@ import "./ProjeTablosu.css";
 import { fmt, norm } from "./helpers";
 import PlateDetailModal from "./PlakaDetayPenceresi";
 
-const EXCLUDED_SERVICE_NAMES = [];
-
-// ProjeTablosu.jsx içindeki ServiceBreakdown fonksiyonunu tamamen bu ile değiştirin
 const IK_KEYWORDS = ["ik", "personel", "maaş", "sgk", "işçi", "çalışan", "prim"];
 const MUH_KEYWORDS = ["muhasebe", "vergi", "kdv", "stopaj", "mali", "denetim", "fatura"];
 
@@ -24,9 +21,7 @@ function ServiceBreakdown({
     const toggleCat = (key) =>
         setOpenCats((prev) => ({ ...prev, [key]: !prev[key] }));
 
-    const filteredDetails = useMemo(() => {
-        return details || [];
-    }, [details]);
+    const filteredDetails = useMemo(() => details || [], [details]);
 
     const monthlyDagilim = useMemo(() => {
         const filtered = (projeDagilimRows || []).filter(
@@ -36,13 +31,15 @@ function ServiceBreakdown({
         );
 
         const grouped = new Map();
+
         filtered.forEach((row) => {
             const hesapAdi = row.hesap_adi || "-";
             const altKalem = row.alt_kalem || "-";
             const kullaniciAdi = row.kullanici_adi || "-";
-            const kategori = String(row.kategori || "").toLowerCase().trim();
+            const kaynakTablo = String(row.kaynak_tablo || "").toLowerCase().trim();
 
-            const key = `${hesapAdi}__${altKalem}__${kullaniciAdi}__${kategori}`.toLocaleLowerCase("tr-TR");
+            const key =
+                `${hesapAdi}__${altKalem}__${kullaniciAdi}__${kaynakTablo}`.toLocaleLowerCase("tr-TR");
 
             if (!grouped.has(key)) {
                 grouped.set(key, {
@@ -53,7 +50,7 @@ function ServiceBreakdown({
                     tutar: 0,
                     donem_ay: row.donem_ay || "",
                     dagilim_orani: Number(row.dagilim_orani || 0),
-                    kategori,
+                    kaynak_tablo: kaynakTablo,
                 });
             }
 
@@ -61,23 +58,27 @@ function ServiceBreakdown({
             current.tutar += Number(row.tutar || 0);
             current.dagilim_orani = Number(row.dagilim_orani || 0);
         });
+
         return [...grouped.values()].sort((a, b) => b.tutar - a.tutar);
     }, [projeDagilimRows, selectedMonth]);
 
-    // Kategori sınıflandırma
-
     const categorize = React.useCallback((item) => {
         const text = `${item.hesap_adi} ${item.alt_kalem}`.toLowerCase();
-        const kat = String(item.kategori || "").toLowerCase().trim();
+        const kaynak = String(item.kaynak_tablo || "").toLowerCase().trim();
+        const altKalem = String(item.alt_kalem || "").toLowerCase().trim();
 
-        if (kat === "ik") return "ik";
-        if (kat === "muhasebe") return "muhasebe";
+        if (kaynak === "ik") return "ik";
+        if (kaynak === "muhasebe") return "muhasebe";
 
-        if (IK_KEYWORDS.some((k) => text.includes(k))) return "ik";
+        if (altKalem.includes("muhasebe")) return "muhasebe";
+        if (altKalem.includes("ik")) return "ik";
+
         if (MUH_KEYWORDS.some((k) => text.includes(k))) return "muhasebe";
+        if (IK_KEYWORDS.some((k) => text.includes(k))) return "ik";
 
         return "diger";
     }, []);
+
     const categorized = useMemo(() => {
         const groups = { ik: [], muhasebe: [], diger: [] };
         monthlyDagilim.forEach((item) => {
@@ -87,18 +88,20 @@ function ServiceBreakdown({
     }, [monthlyDagilim, categorize]);
 
     const CAT_CONFIG = [
-        { key: "ik", label: "İK", color: "#7F77DD" },
-        { key: "muhasebe", label: "Muhasebe", color: "#1D9E75" },
-        { key: "diger", label: "Diğer", color: "#888780" },
+        { key: "ik", label: "İK", color: "#7C3AED" },
+        { key: "muhasebe", label: "Muhasebe", color: "#059669" },
+        { key: "diger", label: "Diğer", color: "#64748B" },
     ];
 
     const svcOpts = useMemo(
         () =>
-            [...new Set(
-                filteredDetails
-                    .map((d) => d.ServiceExpenseName || d.ServiceExpense)
-                    .filter((x) => x && x !== "-"),
-            )].sort((a, b) => a.localeCompare(b, "tr")),
+            [
+                ...new Set(
+                    filteredDetails
+                        .map((d) => d.ServiceExpenseName || d.ServiceExpense)
+                        .filter((x) => x && x !== "-")
+                ),
+            ].sort((a, b) => a.localeCompare(b, "tr")),
         [filteredDetails]
     );
 
@@ -112,75 +115,84 @@ function ServiceBreakdown({
 
     const bySvc = useMemo(() => {
         const map = new Map();
+
         filtered.forEach((d) => {
             const key = d.ServiceExpenseName || d.ServiceExpense || "-";
             if (!map.has(key)) map.set(key, { name: key, p: 0, s: 0 });
+
             const g = map.get(key);
             g.p += Number(d.PurchaseInvoiceIncome || 0);
             g.s += Number(d.SalesInvoceIncome || 0);
         });
-        return [...map.values()].sort((a, b) => b.p - a.p);
+
+        return [...map.values()].sort((a, b) => (b.p + b.s) - (a.p + a.s));
     }, [filtered]);
 
     const byPlate = useMemo(() => {
         const unique = new Set();
+
         filtered.forEach((d) => {
             const plate = d.PlateNumber || "-";
             if (norm(plate).includes(norm(plateSearch))) unique.add(plate);
         });
+
         return [...unique].sort((a, b) => a.localeCompare(b, "tr"));
     }, [filtered, plateSearch]);
 
     return (
-        <div className="xp-inner">
-            <div className="detail-toolbar">
+        <div className="pt-detail-shell">
+            <div className="pt-detail-toolbar">
                 <select
-                    className="f-sel"
+                    className="pt-control pt-select"
                     value={svcF}
                     onChange={(e) => setSvcF(e.target.value)}
                 >
                     <option value="">Tüm hizmetler</option>
                     {svcOpts.map((o) => (
-                        <option key={o} value={o}>{o}</option>
+                        <option key={o} value={o}>
+                            {o}
+                        </option>
                     ))}
                 </select>
 
                 <input
-                    className="f-inp"
+                    className="pt-control pt-input"
                     placeholder="Plaka filtrele..."
                     value={plateSearch}
                     onChange={(e) => setPlateSearch(e.target.value)}
                 />
             </div>
 
-            <div className="detail-grid">
-                {/* SOL: Hizmet / Masraf */}
-                <section className="detail-panel detail-panel-services">
-                    <div className="sec-lbl">Hizmet / Masraf ({bySvc.length})</div>
+            <div className="pt-detail-grid">
+                <section className="pt-panel pt-panel-services">
+                    <div className="pt-panel-title">Hizmet / Masraf ({bySvc.length})</div>
 
                     {bySvc.length === 0 ? (
-                        <div className="detail-empty">Veri yok</div>
+                        <div className="pt-empty">Veri yok</div>
                     ) : (
-                        <div className="dagilim-detail-list">
+                        <div className="pt-scroll pt-service-scroll pt-service-list">
                             {bySvc.map((s) => {
-                                const showSales = s.s !== 0;
-                                const showPurchase = s.p !== 0;
+                                const showSales = Number(s.s) !== 0;
+                                const showPurchase = Number(s.p) !== 0;
+
                                 return (
-                                    <div className="dagilim-detail-row compact-row" key={s.name}>
-                                        <div className="dagilim-detail-main">
-                                            <div className="dagilim-detail-title">{s.name}</div>
+                                    <div className="pt-service-row" key={s.name}>
+                                        <div className="pt-service-main">
+                                            <div className="pt-service-name">{s.name}</div>
                                         </div>
-                                        <div className="dagilim-detail-fields">
+
+                                        <div className="pt-service-metrics">
                                             {showSales && (
-                                                <div className="dagilim-field">
+                                                <div className="pt-metric-box">
                                                     <span>Satış</span>
-                                                    {fmt(s.s, true)}
+                                                    <strong>{fmt(s.s, true)}</strong>
                                                 </div>
                                             )}
+
                                             {showPurchase && (
-                                                <div className="dagilim-field">
+                                                <div className="pt-metric-box">
                                                     <span>Alış</span>
-                                                    {fmt(s.p, true)}
+                                                    <strong>{fmt(s.p, true)}</strong>
                                                 </div>
                                             )}
                                         </div>
@@ -191,61 +203,58 @@ function ServiceBreakdown({
                     )}
                 </section>
 
-                {/* SAĞ: Genel Dağılım Maliyetleri - Kategorili */}
-                <section className="detail-panel detail-panel-costs">
-                    <div className="sec-lbl">
+                <section className="pt-panel pt-panel-costs">
+                    <div className="pt-panel-title">
                         Genel Dağılım Maliyetleri ({monthlyDagilim.length})
                     </div>
 
                     {monthlyDagilim.length === 0 ? (
-                        <div className="detail-empty">Dağılım verisi yok</div>
+                        <div className="pt-empty">Dağılım verisi yok</div>
                     ) : (
-                        <div className="dagilim-detail-list">
+                        <div className="pt-scroll pt-cost-scroll">
                             {CAT_CONFIG.map(({ key, label, color }) => {
                                 const items = categorized[key];
                                 if (items.length === 0) return null;
-                                const total = items.reduce((s, i) => s + i.tutar, 0);
+
+                                const total = items.reduce((sum, item) => sum + item.tutar, 0);
                                 const isOpen = !!openCats[key];
+
                                 return (
                                     <div key={key}>
-                                        {/* Kategori başlığı */}
                                         <div
-                                            className={`cat-group-header${isOpen ? " open" : ""}`}
+                                            className={`pt-cat-header${isOpen ? " open" : ""}`}
                                             onClick={() => toggleCat(key)}
                                         >
-                                            <div className="cat-group-left">
+                                            <div className="pt-cat-left">
                                                 <span
-                                                    className="cat-dot-indicator"
+                                                    className="pt-cat-dot"
                                                     style={{ background: color }}
                                                 />
-                                                <span className="cat-group-name">{label}</span>
-                                                <span className="cat-group-count">{items.length} kalem</span>
+                                                <span className="pt-cat-name">{label}</span>
+                                                <span className="pt-cat-count">{items.length} kalem</span>
                                             </div>
-                                            <div className="cat-group-right">
-                                                <span className="cat-group-total">{fmt(total, true)}</span>
-                                                <span className="cat-group-chev">
-                                                    {isOpen ? "▲" : "▼"}
-                                                </span>
+
+                                            <div className="pt-cat-right">
+                                                <span className="pt-cat-total">{fmt(total, true)}</span>
+                                                <span className="pt-cat-chevron">{isOpen ? "▲" : "▼"}</span>
                                             </div>
                                         </div>
 
-                                        {/* Detay satırlar */}
                                         {isOpen && (
-                                            <div className="cat-group-body">
+                                            <div className="pt-cat-body">
                                                 {items.map((item) => (
                                                     <div
-                                                        className="cat-group-item"
+                                                        className="pt-cat-item"
                                                         key={item.id || `${item.hesap_adi}-${item.alt_kalem}`}
                                                     >
-                                                        <div className="cat-item-main">
-                                                            <div className="cat-item-title">
+                                                        <div className="pt-cat-item-main">
+                                                            <div className="pt-cat-item-title">
                                                                 {String(item.hesap_adi).toUpperCase()}
                                                             </div>
-                                                            <div className="cat-item-sub">
-                                                                {item.alt_kalem}
-                                                            </div>
+                                                            <div className="pt-cat-item-sub">{item.alt_kalem}</div>
                                                         </div>
-                                                        <div className="cat-item-tutar">
+
+                                                        <div className="pt-cat-item-amount">
                                                             {fmt(item.tutar, true)}
                                                         </div>
                                                     </div>
@@ -259,18 +268,18 @@ function ServiceBreakdown({
                     )}
                 </section>
 
-                {/* Plakalar */}
-                <section className="detail-panel detail-panel-plates">
-                    <div className="sec-lbl">Plaka ({byPlate.length})</div>
+                <section className="pt-panel pt-panel-plates">
+                    <div className="pt-panel-title">Plakalar ({byPlate.length})</div>
+
                     {byPlate.length === 0 ? (
-                        <div className="detail-empty">Veri yok</div>
+                        <div className="pt-empty">Veri yok</div>
                     ) : (
-                        <div className="plate-chip-list">
+                        <div className="pt-plate-grid">
                             {byPlate.map((plate) => (
                                 <button
                                     key={plate}
                                     type="button"
-                                    className="plate-chip"
+                                    className="pt-plate-chip"
                                     onClick={() => onPlateClick?.(plate)}
                                     title={plate}
                                 >
@@ -284,6 +293,7 @@ function ServiceBreakdown({
         </div>
     );
 }
+
 const CURRENCY_FORMAT = '#,##0.00 [$₺-tr-TR]';
 const PERCENT_FORMAT = '0.00%';
 
@@ -491,6 +501,7 @@ export default function ProjeTablosu({
             0
         );
     }, [filteredDagilimRows]);
+
     const enrichedProjects = useMemo(() => {
         return projects.map((project) => {
             const projectDagilim = filteredDagilimRows.filter(
@@ -502,6 +513,7 @@ export default function ProjeTablosu({
                 (sum, row) => sum + Number(row.tutar || 0),
                 0
             );
+
             const yeniAlis = Number(project.purchaseTotal || 0) + dagitimToplamAlis;
             const yeniKar = Number(project.salesTotal || 0) - yeniAlis;
 
@@ -513,6 +525,7 @@ export default function ProjeTablosu({
             };
         });
     }, [projects, filteredDagilimRows]);
+
     const filtered = useMemo(() => {
         const s = [...enrichedProjects].filter((p) =>
             norm(p.projectName).includes(norm(search))
@@ -536,9 +549,11 @@ export default function ProjeTablosu({
             (a, p) => ({
                 p: a.p + Number(p.purchaseTotalWithDagilim || 0),
                 s: a.s + Number(p.salesTotal || 0),
+                basePurchase: a.basePurchase + Number(p.purchaseTotal || 0),
+                dagilim: a.dagilim + Number(p.dagitimToplamAlis || 0),
                 plates: a.plates + Number(p.plateCount || 0),
             }),
-            { p: 0, s: 0, plates: 0 }
+            { p: 0, s: 0, basePurchase: 0, dagilim: 0, plates: 0 }
         );
 
         return {
@@ -546,6 +561,7 @@ export default function ProjeTablosu({
             p: projectTotals.p,
         };
     }, [filtered]);
+
     const totalProfit = totals.s - totals.p;
     const totalProfitability = totals.s > 0 ? totalProfit / totals.s : 0;
 
@@ -656,7 +672,7 @@ export default function ProjeTablosu({
                     Number(p.plateCount || 0),
                     money(p.salesTotal),
                     money(p.purchaseTotal),
-                    0,
+                    money(p.dagitimToplamAlis),
                     money(p.purchaseTotalWithDagilim),
                     money(p.profitWithDagilim),
                     percent(profitability),
@@ -685,17 +701,17 @@ export default function ProjeTablosu({
                 "Genel Toplam",
                 "",
                 money(totals.s),
+                money(totals.basePurchase),
+                money(totals.dagilim),
                 money(totals.p),
-                money(monthlyDagilimTotal),
                 money(totalProfit),
                 percent(totalProfitability),
-                "",
             ],
             {
                 leftCols: 1,
-                currencyCols: [3, 4, 5, 6],
-                percentCols: [7],
-                highlightProfitCol: 6,
+                currencyCols: [3, 4, 5, 6, 7],
+                percentCols: [8],
+                highlightProfitCol: 7,
                 fill: "F8FBFF",
             }
         );
@@ -811,7 +827,7 @@ export default function ProjeTablosu({
                 });
             }
 
-            const monthlyDagilim = filteredDagilimRows
+            const monthlyDagilimRows = filteredDagilimRows
                 .filter(
                     (row) =>
                         norm(row.reel_proje_adi || row.proje_adi) === norm(project.projectName)
@@ -824,6 +840,7 @@ export default function ProjeTablosu({
                     donem_ay: row.donem_ay || "",
                 }))
                 .sort((a, b) => b.tutar - a.tutar);
+
             rowIndex += 1;
             addSectionTitle(ws, rowIndex, "GENEL DAĞILIM MALİYETLERİ");
             rowIndex += 1;
@@ -839,7 +856,7 @@ export default function ProjeTablosu({
             ]);
             rowIndex += 1;
 
-            if (monthlyDagilim.length === 0) {
+            if (monthlyDagilimRows.length === 0) {
                 const emptyRow = ws.addRow(["Dağılım verisi yok"]);
                 ws.mergeCells(`A${rowIndex}:H${rowIndex}`);
                 styleCell(emptyRow.getCell(1), {
@@ -849,7 +866,7 @@ export default function ProjeTablosu({
                 });
                 rowIndex += 1;
             } else {
-                monthlyDagilim.forEach((item) => {
+                monthlyDagilimRows.forEach((item) => {
                     addDataRow(
                         ws,
                         [
@@ -935,80 +952,83 @@ export default function ProjeTablosu({
     };
 
     return (
-        <div className="page">
+        <div className="pt-page">
             <PlateDetailModal
                 plateNumber={selPlate}
                 allRows={allRows}
                 onClose={() => setSelPlate(null)}
             />
 
-            <div className="card">
-                <div className="card-head">
-                    <div className="toolbar-top">
-                        <div className="toolbar-left">
-                            <div className="sb-search-wrap">
-                                <span className="sb-icon">⌕</span>
+            <div className="pt-card">
+                <div className="pt-card-head">
+                    <div className="pt-toolbar-top">
+                        <div className="pt-toolbar-left">
+                            <div className="pt-search-wrap">
+                                <span className="pt-search-icon">⌕</span>
                                 <input
-                                    className="sb-search"
+                                    className="pt-control pt-search"
                                     placeholder="Proje ara..."
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
                                 />
                             </div>
 
-                            <select
-                                className="f-sel"
-                                value={sort}
-                                onChange={(e) => setSort(e.target.value)}
-                            >
-                                <option value="profit">Kâra göre</option>
-                                <option value="purchase">Alışa göre</option>
-                                <option value="sales">Satışa göre</option>
-                                <option value="plates">Plaka sayısına göre</option>
-                            </select>
+                            <div className="pt-sort-wrap">
+                                <select
+                                    className="pt-control pt-select pt-sort-select"
+                                    value={sort}
+                                    onChange={(e) => setSort(e.target.value)}
+                                >
+                                    <option value="profit">Kâra göre</option>
+                                    <option value="purchase">Alışa göre</option>
+                                    <option value="sales">Satışa göre</option>
+                                    <option value="plates">Plaka sayısına göre</option>
+                                </select>
+                            </div>
                         </div>
 
-                        <div className="toolbar-right">
+                        <div className="pt-toolbar-right">
                             <button
                                 type="button"
-                                className="excel-btn"
+                                className="pt-export-btn"
                                 onClick={handleExportExcel}
                                 title="Modern Excel raporu oluştur"
                             >
-                                <span className="excel-btn-icon">⬇</span>
+                                <span className="pt-export-icon">⬇</span>
                                 Excel’e Aktar
                             </button>
                         </div>
                     </div>
 
-                    <div className="toolbar-bottom">
-                        <span className="f-tag">{filtered.length} proje</span>
-                        <span className="f-tag">Ay: {selectedMonth || "Tümü"}</span>
-                        <span className="f-tag">
+                    <div className="pt-toolbar-bottom">
+                        <span className="pt-tag">{filtered.length} proje</span>
+                        <span className="pt-tag">Ay: {selectedMonth || "Tümü"}</span>
+                        <span className="pt-tag">
                             Genel Dağılım: {fmt(monthlyDagilimTotal, true)}
                         </span>
                     </div>
                 </div>
 
-                <div className="tbl-wrap">
-                    <table className="project-table">
+                <div className="pt-table-wrap">
+                    <table className="pt-table">
                         <thead>
                             <tr>
-                                <th style={{ width: 44 }}></th>
-                                <th className="col-project">Proje Adı</th>
-                                <th className="c col-plate">Sefer Plaka</th>
-                                <th className="r col-money">Satış</th>
-                                <th className="r col-money">Alış</th>
-                                <th className="r col-money">Kâr / Zarar</th>
-                                <th className="r col-profitability">Karlılık</th>
+                                <th className="pt-col-toggle"></th>
+                                <th className="pt-col-project">Proje Adı</th>
+                                <th className="pt-col-plate">Sefer / Plaka</th>
+                                <th className="pt-col-money">Satış</th>
+                                <th className="pt-col-money">Alış</th>
+                                <th className="pt-col-money">Genel Dağılım</th>
+                                <th className="pt-col-money">Kâr / Zarar</th>
+                                <th className="pt-col-profit">Karlılık</th>
                             </tr>
                         </thead>
 
                         <tbody>
                             {filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7}>
-                                        <div className="empty">Proje bulunamadı.</div>
+                                    <td colSpan={8}>
+                                        <div className="pt-empty">Proje bulunamadı.</div>
                                     </td>
                                 </tr>
                             ) : (
@@ -1019,44 +1039,48 @@ export default function ProjeTablosu({
                                     return (
                                         <React.Fragment key={project.key}>
                                             <tr
-                                                className={`clk ${isOpen ? "xpnd" : ""}`}
+                                                className={`pt-row ${isOpen ? "expanded" : ""}`}
                                                 onClick={() =>
                                                     setExpanded((prev) =>
                                                         prev === project.key ? null : project.key
                                                     )
                                                 }
                                             >
-                                                <td>
-                                                    <span className="chev">
+                                                <td className="pt-col-toggle pt-center">
+                                                    <span className="pt-chevron">
                                                         {isOpen ? "▲" : "▼"}
                                                     </span>
                                                 </td>
 
-                                                <td className="project-name-cell">
+                                                <td className="pt-project-name pt-col-project">
                                                     {project.projectName}
                                                 </td>
 
-                                                <td className="c">
-                                                    <span className="b b-gr">
+                                                <td className="pt-center pt-col-plate">
+                                                    <span className="pt-pill pt-pill-neutral">
                                                         {project.plateCount}
                                                     </span>
                                                 </td>
 
-                                                <td className="r compact-money">
+                                                <td className="pt-right pt-money pt-col-money">
                                                     {fmt(project.salesTotal, true)}
                                                 </td>
 
-                                                <td className="r muted compact-money">
-                                                    {fmt(project.purchaseTotalWithDagilim, true)}
+                                                <td className="pt-right pt-money pt-col-money">
+                                                    {fmt(project.purchaseTotal, true)}
                                                 </td>
 
-                                                <td className="r compact-money">
+                                                <td className="pt-right pt-money pt-col-money">
+                                                    {fmt(project.dagitimToplamAlis, true)}
+                                                </td>
+
+                                                <td className="pt-right pt-money pt-col-money">
                                                     <strong>{fmt(project.profitWithDagilim, true)}</strong>
                                                 </td>
 
-                                                <td className="r">
+                                                <td className="pt-right pt-col-profit">
                                                     <span
-                                                        className={`ratio-pill ${profitability >= 0 ? "pos" : "neg"}`}
+                                                        className={`pt-ratio-pill ${profitability >= 0 ? "pos" : "neg"}`}
                                                         title="Kâr / Satış"
                                                     >
                                                         {formatPercent(profitability)}
@@ -1066,13 +1090,14 @@ export default function ProjeTablosu({
 
                                             {isOpen && (
                                                 <tr>
-                                                    <td colSpan={7} className="xp-td">
+                                                    <td colSpan={8} className="pt-expanded-cell">
                                                         <ServiceBreakdown
                                                             details={project.details}
                                                             onPlateClick={setSelPlate}
                                                             projeDagilimRows={filteredDagilimRows.filter(
                                                                 (row) =>
-                                                                    norm(row.reel_proje_adi || row.proje_adi) === norm(project.projectName)
+                                                                    norm(row.reel_proje_adi || row.proje_adi) ===
+                                                                    norm(project.projectName)
                                                             )}
                                                             selectedMonth={selectedMonth}
                                                         />
@@ -1087,19 +1112,35 @@ export default function ProjeTablosu({
 
                         <tfoot>
                             <tr>
-                                <td></td>
-                                <td className="tfoot-label">Genel Toplam</td>
+                                <td className="pt-col-toggle pt-center"></td>
 
-                                <td className="c">
-                                    <span className="b b-gr">{totals.plates}</span>
+                                <td className="pt-foot-label pt-col-project">
+                                    Genel Toplam
                                 </td>
 
-                                <td className="r">{fmt(totals.s, true)}</td>
-                                <td className="r">{fmt(totals.p, true)}</td>
-                                <td className="r">{fmt(totalProfit, true)}</td>
-                                <td className="r">
+                                <td className="pt-center pt-col-plate">
+                                    <span className="pt-pill pt-pill-neutral">{totals.plates}</span>
+                                </td>
+
+                                <td className="pt-right pt-money pt-col-money">
+                                    {fmt(totals.s, true)}
+                                </td>
+
+                                <td className="pt-right pt-money pt-col-money">
+                                    {fmt(totals.basePurchase, true)}
+                                </td>
+
+                                <td className="pt-right pt-money pt-col-money">
+                                    {fmt(totals.dagilim, true)}
+                                </td>
+
+                                <td className="pt-right pt-money pt-col-money">
+                                    {fmt(totalProfit, true)}
+                                </td>
+
+                                <td className="pt-right pt-col-profit">
                                     <span
-                                        className={`ratio-pill ${totalProfitability >= 0 ? "pos" : "neg"}`}
+                                        className={`pt-ratio-pill ${totalProfitability >= 0 ? "pos" : "neg"}`}
                                     >
                                         {formatPercent(totalProfitability)}
                                     </span>

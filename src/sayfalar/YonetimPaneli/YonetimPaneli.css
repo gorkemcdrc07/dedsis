@@ -1,21 +1,52 @@
-﻿.yp-sayfa {
+﻿:root {
+    --yp-page-text: #0f172a;
+    --yp-muted: rgba(15, 23, 42, 0.68);
+    --yp-card-bg: #ffffff;
+    --yp-card-border: rgba(15, 23, 42, 0.08);
+    --yp-soft-bg: rgba(15, 23, 42, 0.03);
+    --yp-soft-bg-2: rgba(15, 23, 42, 0.05);
+    --yp-hover-bg: rgba(79, 70, 229, 0.08);
+    --yp-selected-bg: rgba(99, 102, 241, 0.14);
+    --yp-input-bg: #ffffff;
+    --yp-input-text: #0f172a;
+    --yp-switch-bg: rgba(15, 23, 42, 0.12);
+    --yp-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+.dark,
+[data-theme="dark"] {
+    --yp-page-text: #f8fafc;
+    --yp-muted: rgba(226, 232, 240, 0.72);
+    --yp-card-bg: rgba(7, 18, 38, 0.92);
+    --yp-card-border: rgba(255, 255, 255, 0.08);
+    --yp-soft-bg: rgba(255, 255, 255, 0.03);
+    --yp-soft-bg-2: rgba(255, 255, 255, 0.04);
+    --yp-hover-bg: rgba(255, 255, 255, 0.06);
+    --yp-selected-bg: rgba(99, 102, 241, 0.16);
+    --yp-input-bg: rgba(255, 255, 255, 0.04);
+    --yp-input-text: #f8fafc;
+    --yp-switch-bg: rgba(255, 255, 255, 0.08);
+    --yp-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+}
+
+.yp-sayfa {
     padding: 24px;
     display: flex;
     flex-direction: column;
     gap: 16px;
-    color: #f8fafc;
+    color: var(--yp-page-text);
 }
 
 .yp-baslik {
     font-size: 22px;
     font-weight: 700;
-    color: #f8fafc;
+    color: var(--yp-page-text);
     margin: 0;
 }
 
 .yp-alt {
     font-size: 13px;
-    color: rgba(226, 232, 240, 0.75);
+    color: var(--yp-muted);
     margin: 4px 0 0;
 }
 
@@ -42,15 +73,15 @@
     border-radius: 10px;
     font-size: 13px;
     font-weight: 500;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.04);
-    color: #f8fafc;
+    border: 1px solid var(--yp-card-border);
+    background: var(--yp-soft-bg);
+    color: var(--yp-page-text);
     cursor: pointer;
     transition: 0.15s ease;
 }
 
     .yp-btn:hover {
-        background: rgba(255, 255, 255, 0.08);
+        background: var(--yp-soft-bg-2);
     }
 
     .yp-btn:disabled {
@@ -61,23 +92,12 @@
 .yp-btn--primary {
     background: #4f46e5;
     border-color: #4f46e5;
+    color: #fff;
 }
 
     .yp-btn--primary:hover {
         background: #4338ca;
     }
-
-.yp-btn--success {
-    background: rgba(34, 197, 94, 0.12);
-    border-color: rgba(34, 197, 94, 0.22);
-    color: #86efac;
-}
-
-.yp-btn--danger {
-    background: rgba(239, 68, 68, 0.12);
-    border-color: rgba(239, 68, 68, 0.24);
-    color: #fca5a5;
-}
 
 .yp-btn--sm {
     padding: 6px 10px;
@@ -85,12 +105,17 @@
 }
 
 .yp-hata-kutu {
-    background: rgba(127, 29, 29, 0.22);
-    border: 1px solid rgba(239, 68, 68, 0.24);
-    color: #fecaca;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.22);
+    color: #b91c1c;
     padding: 12px 14px;
     border-radius: 14px;
     font-size: 13px;
+}
+
+.dark .yp-hata-kutu,
+[data-theme="dark"] .yp-hata-kutu {
+    color: #fecaca;
 }
 
 .yp-stats {
@@ -101,9 +126,10 @@
 
 .yp-stat-kart,
 .yp-kart {
-    background: rgba(7, 18, 38, 0.92);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--yp-card-bg);
+    border: 1px solid var(--yp-card-border);
     border-radius: 16px;
+    box-shadow: var(--yp-shadow);
 }
 
 .yp-stat-kart {
@@ -112,14 +138,14 @@
 
 .yp-stat-etiket {
     font-size: 12px;
-    color: rgba(226, 232, 240, 0.72);
+    color: var(--yp-muted);
     margin-bottom: 6px;
 }
 
 .yp-stat-deger {
     font-size: 22px;
     font-weight: 700;
-    color: #f8fafc;
+    color: var(--yp-page-text);
     margin-bottom: 4px;
     word-break: break-word;
 }
@@ -134,21 +160,41 @@
 
 .yp-badge--yesil {
     background: rgba(34, 197, 94, 0.15);
-    color: #86efac;
+    color: #15803d;
 }
 
 .yp-badge--mavi {
     background: rgba(59, 130, 246, 0.15);
-    color: #93c5fd;
+    color: #1d4ed8;
 }
 
 .yp-badge--turuncu {
     background: rgba(245, 158, 11, 0.15);
-    color: #fcd34d;
+    color: #b45309;
 }
 
 .yp-badge--kirmizi {
     background: rgba(239, 68, 68, 0.15);
+    color: #b91c1c;
+}
+
+.dark .yp-badge--yesil,
+[data-theme="dark"] .yp-badge--yesil {
+    color: #86efac;
+}
+
+.dark .yp-badge--mavi,
+[data-theme="dark"] .yp-badge--mavi {
+    color: #93c5fd;
+}
+
+.dark .yp-badge--turuncu,
+[data-theme="dark"] .yp-badge--turuncu {
+    color: #fcd34d;
+}
+
+.dark .yp-badge--kirmizi,
+[data-theme="dark"] .yp-badge--kirmizi {
     color: #fca5a5;
 }
 
@@ -173,26 +219,26 @@
     justify-content: space-between;
     gap: 12px;
     padding: 14px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--yp-card-border);
 }
 
 .yp-kart-baslik {
     font-size: 14px;
     font-weight: 700;
-    color: #f8fafc;
+    color: var(--yp-page-text);
 }
 
 .yp-secili-bilgi {
     margin-top: 4px;
     font-size: 12px;
-    color: rgba(226, 232, 240, 0.72);
+    color: var(--yp-muted);
 }
 
 .yp-toolbar {
     display: flex;
     gap: 8px;
     padding: 12px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--yp-card-border);
 }
 
 .yp-arama {
@@ -201,8 +247,8 @@
     gap: 8px;
     flex: 1;
     max-width: 260px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--yp-card-border);
+    background: var(--yp-soft-bg);
     border-radius: 10px;
     padding: 8px 10px;
 }
@@ -211,35 +257,14 @@
         width: 100%;
         border: none;
         background: transparent;
-        color: #f8fafc;
+        color: var(--yp-input-text);
         outline: none;
         font-size: 13px;
     }
 
         .yp-arama input::placeholder {
-            color: rgba(226, 232, 240, 0.45);
+            color: var(--yp-muted);
         }
-
-.yp-filtre-btn,
-.yp-mini-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    padding: 7px 10px;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(226, 232, 240, 0.82);
-    cursor: pointer;
-    font-size: 12px;
-    transition: 0.15s ease;
-}
-
-    .yp-filtre-btn:hover,
-    .yp-mini-btn:hover {
-        background: rgba(255, 255, 255, 0.07);
-    }
 
 .yp-kullanici-liste {
     display: flex;
@@ -252,23 +277,18 @@
     gap: 12px;
     align-items: center;
     padding: 14px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--yp-card-border);
     cursor: pointer;
     transition: 0.15s ease;
 }
 
     .yp-kullanici-kart:hover {
-        background: rgba(255, 255, 255, 0.04);
+        background: var(--yp-hover-bg);
     }
 
     .yp-kullanici-kart.secili {
-        background: rgba(99, 102, 241, 0.16);
+        background: var(--yp-selected-bg);
     }
-
-        .yp-kullanici-kart.secili .yp-kullanici-ad,
-        .yp-kullanici-kart.secili .yp-kullanici-email {
-            color: #fff;
-        }
 
 .yp-kullanici-kart-yazi {
     min-width: 0;
@@ -314,7 +334,7 @@
 .yp-kullanici-ad {
     font-size: 14px;
     font-weight: 600;
-    color: #f8fafc;
+    color: var(--yp-page-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -322,76 +342,19 @@
 
 .yp-kullanici-email {
     font-size: 12px;
-    color: rgba(226, 232, 240, 0.72);
+    color: var(--yp-muted);
     margin-top: 3px;
-}
-
-.yp-ikon-btn {
-    width: 30px;
-    height: 30px;
-    border-radius: 9px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(226, 232, 240, 0.82);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: 0.15s ease;
-    flex-shrink: 0;
-}
-
-    .yp-ikon-btn:hover {
-        background: rgba(99, 102, 241, 0.14);
-        border-color: rgba(129, 140, 248, 0.35);
-        color: #fff;
-    }
-
-.yp-ikon-btn--sil:hover {
-    background: rgba(239, 68, 68, 0.14);
-    border-color: rgba(239, 68, 68, 0.35);
-    color: #fecaca;
 }
 
 .yp-bos-alan {
     padding: 18px 16px;
-    color: rgba(226, 232, 240, 0.72);
+    color: var(--yp-muted);
     font-size: 13px;
 }
 
-.yp-pagination {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.yp-page-btns {
-    display: flex;
-    gap: 4px;
-}
-
-.yp-pg {
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: transparent;
-    color: rgba(226, 232, 240, 0.8);
-    cursor: pointer;
-}
-
-    .yp-pg.aktif {
-        background: #4f46e5;
-        color: #fff;
-        border-color: #4f46e5;
-    }
-
 .yp-muted {
     font-size: 12px;
-    color: rgba(226, 232, 240, 0.72);
+    color: var(--yp-muted);
 }
 
 .yp-ekran-matris {
@@ -400,7 +363,7 @@
 }
 
 .yp-ekran-blok {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--yp-card-border);
 }
 
     .yp-ekran-blok:last-child {
@@ -415,25 +378,19 @@
     padding: 14px 16px;
 }
 
-.yp-ekran-toggle,
-.yp-oge-toggle {
+.yp-ekran-toggle {
     width: 28px;
     height: 28px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.03);
-    color: #e2e8f0;
+    border: 1px solid var(--yp-card-border);
+    background: var(--yp-soft-bg);
+    color: var(--yp-page-text);
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
 }
-
-    .yp-oge-toggle:disabled {
-        opacity: 0.45;
-        cursor: default;
-    }
 
 .yp-ekran-ikon {
     width: 34px;
@@ -456,12 +413,12 @@
 .yp-ekran-ad {
     font-size: 14px;
     font-weight: 600;
-    color: #f8fafc;
+    color: var(--yp-page-text);
 }
 
 .yp-ekran-alt {
     font-size: 12px;
-    color: rgba(226, 232, 240, 0.7);
+    color: var(--yp-muted);
     margin-top: 3px;
 }
 
@@ -473,7 +430,7 @@
 
 .yp-switch-label {
     font-size: 12px;
-    color: rgba(226, 232, 240, 0.72);
+    color: var(--yp-muted);
 }
 
 .yp-switch {
@@ -481,8 +438,8 @@
     width: 48px;
     height: 28px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--yp-card-border);
+    background: var(--yp-switch-bg);
     cursor: pointer;
     transition: 0.15s ease;
     flex-shrink: 0;
@@ -497,6 +454,7 @@
     border-radius: 999px;
     background: #fff;
     transition: 0.15s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .yp-switch.aktif {
@@ -525,7 +483,7 @@
 .yp-ekran-icerik-baslik {
     font-size: 12px;
     font-weight: 600;
-    color: rgba(226, 232, 240, 0.82);
+    color: var(--yp-muted);
 }
 
 .yp-toplu-btn-grup {
@@ -533,6 +491,25 @@
     gap: 6px;
     flex-wrap: wrap;
 }
+
+.yp-mini-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--yp-card-border);
+    background: var(--yp-soft-bg);
+    color: var(--yp-page-text);
+    cursor: pointer;
+    font-size: 12px;
+    transition: 0.15s ease;
+}
+
+    .yp-mini-btn:hover {
+        background: var(--yp-soft-bg-2);
+    }
 
 .yp-oge-liste,
 .yp-alan-liste {
@@ -555,13 +532,13 @@
     gap: 12px;
     padding: 10px 12px;
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--yp-soft-bg);
+    border: 1px solid var(--yp-card-border);
 }
 
 .yp-alan-satir {
     margin-left: 22px;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--yp-soft-bg);
 }
 
 .yp-oge-sol,
@@ -584,176 +561,25 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--yp-soft-bg-2);
     color: transparent;
     flex-shrink: 0;
 }
 
     .yp-oge-durum.aktif {
         background: rgba(34, 197, 94, 0.18);
-        color: #86efac;
+        color: #15803d;
     }
+
+.dark .yp-oge-durum.aktif,
+[data-theme="dark"] .yp-oge-durum.aktif {
+    color: #86efac;
+}
 
 .yp-oge-ad,
 .yp-alan-ad {
     font-size: 13px;
-    color: #f8fafc;
-}
-
-.yp-log-satir {
-    display: flex;
-    gap: 10px;
-    padding: 12px 14px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-    .yp-log-satir:last-child {
-        border-bottom: none;
-    }
-
-.yp-log-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 999px;
-    margin-top: 6px;
-    flex-shrink: 0;
-}
-
-.yp-log-dot--yesil {
-    background: #3b6d11;
-}
-
-.yp-log-dot--mavi {
-    background: #185fa5;
-}
-
-.yp-log-dot--turuncu {
-    background: #ba7517;
-}
-
-.yp-log-dot--kirmizi {
-    background: #a32d2d;
-}
-
-.yp-log-metin {
-    font-size: 13px;
-    color: #f8fafc;
-    line-height: 1.45;
-}
-
-.yp-log-zaman {
-    font-size: 11px;
-    color: rgba(226, 232, 240, 0.7);
-    margin-top: 4px;
-}
-
-/* PANEL */
-.yp-panel-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.45);
-    z-index: 40;
-}
-
-.yp-yan-panel {
-    position: fixed;
-    top: 0;
-    right: -420px;
-    width: 400px;
-    max-width: calc(100vw - 24px);
-    height: 100vh;
-    background: #071226;
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.28);
-    z-index: 50;
-    transition: right 0.25s ease;
-    display: flex;
-    flex-direction: column;
-}
-
-    .yp-yan-panel.acik {
-        right: 0;
-    }
-
-.yp-yan-panel-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.yp-yan-panel-baslik {
-    font-size: 15px;
-    font-weight: 700;
-    color: #f8fafc;
-}
-
-.yp-yan-panel-icerik {
-    padding: 16px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-}
-
-.yp-form-grid {
-    display: grid;
-    gap: 14px;
-}
-
-.yp-input {
-    width: 100%;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.04);
-    color: #f8fafc;
-    border-radius: 10px;
-    padding: 10px 12px;
-    outline: none;
-    font-size: 13px;
-    box-sizing: border-box;
-    margin-top: 6px;
-}
-
-    .yp-input::placeholder {
-        color: rgba(226, 232, 240, 0.45);
-    }
-
-    .yp-input:focus {
-        border-color: rgba(129, 140, 248, 0.7);
-        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
-    }
-
-.yp-panel-footer {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.yp-onay-kutu {
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.035);
-    border-radius: 14px;
-    padding: 14px;
-}
-
-.yp-onay-kutu--tehlike {
-    background: rgba(127, 29, 29, 0.22);
-    border-color: rgba(239, 68, 68, 0.25);
-}
-
-.yp-onay-baslik {
-    font-size: 15px;
-    font-weight: 700;
-    color: #f8fafc;
-    margin-bottom: 8px;
-}
-
-.yp-onay-metin {
-    font-size: 13px;
-    color: rgba(226, 232, 240, 0.8);
-    line-height: 1.5;
-    margin-bottom: 6px;
+    color: var(--yp-page-text);
 }
 
 @media (max-width: 1100px) {
@@ -782,12 +608,6 @@
 
     .yp-arama {
         max-width: 100%;
-    }
-
-    .yp-yan-panel {
-        width: 100%;
-        max-width: 100%;
-        right: -100%;
     }
 
     .yp-ekran-blok-ust {

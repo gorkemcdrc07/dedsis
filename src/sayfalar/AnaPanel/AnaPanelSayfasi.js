@@ -23,6 +23,15 @@ const TABS = [
     { key: "ai", label: "Yapay Zeka Analizi", icon: "🤖" },
 ];
 
+function getSourceTableName(row) {
+    const kaynak = String(row?.kaynak_tablo || "").toLowerCase().trim();
+
+    if (kaynak === "ik") return "ik";
+    if (kaynak === "muhasebe") return "muhasebe";
+
+    return null;
+}
+
 export default function AnaPanelSayfasi() {
     const [startDate, setStartDate] = useState("2026-03-01");
     const [endDate, setEndDate] = useState("2026-03-31");
@@ -34,10 +43,13 @@ export default function AnaPanelSayfasi() {
     const [ikRows, setIkRows] = useState([]);
 
     const [loading, setLoading] = useState(false);
+    const [savingDagilim, setSavingDagilim] = useState(false);
     const [error, setError] = useState("");
     const [tab, setTab] = useState("overview");
     const [tableView] = useState(1);
     const [elapsed, setElapsed] = useState(0);
+
+
 
     const selectedMonth = useMemo(() => {
         if (!startDate) return "";
@@ -126,7 +138,9 @@ export default function AnaPanelSayfasi() {
 
                 supabase
                     .from("proje_dagilim_yeni")
-                    .select("kaynak_tablo, kayit_id, kullanici_id, kullanici_adi, proje_id, proje_adi, reel_proje_adi, donem_yil, donem_ay, hesap_adi, alt_kalem, tutar, dagilim_orani, asil_tutar")
+                    .select(
+                        "kaynak_tablo, kayit_id, kullanici_id, kullanici_adi, proje_id, proje_adi, reel_proje_adi, donem_yil, donem_ay, hesap_adi, alt_kalem, tutar, dagilim_orani, asil_tutar"
+                    )
                     .eq("donem_ay", Number(selectedMonth)),
 
                 supabase
@@ -137,8 +151,17 @@ export default function AnaPanelSayfasi() {
                 supabase
                     .from("ik")
                     .select("*")
+                    .eq("donem_yil", new Date(startDate).getFullYear())
                     .eq("donem_ayi", selectedMonth),
             ]);
+
+            console.log("startDate", startDate);
+            console.log("selectedMonth", selectedMonth);
+            console.log("muhasebeData", muhasebeData);
+            console.log("ikData", ikData);
+            console.log("muhasebeError", muhasebeError);
+            console.log("ikError", ikError);
+            console.log("projeDagilimData ilk 20", (projeDagilimData || []).slice(0, 20));
 
             if (projelerError || projeDagilimError || muhasebeError || ikError) {
                 throw new Error(
@@ -204,15 +227,23 @@ export default function AnaPanelSayfasi() {
             (a, r) => a + Number(r.PurchaseInvoiceIncome || 0),
             0
         );
+
         const apiSales = rows.reduce(
             (a, r) => a + Number(r.SalesInvoceIncome || 0),
             0
         );
 
-        const dagitimPurchase = projeDagilimRows.reduce(
-            (sum, row) => sum + Number(row.asil_tutar || 0),
-            0
+        const visibleProjectIds = new Set(
+            projects
+                .map((p) => Number(p.projeMaster?.id))
+                .filter((id) => Number.isFinite(id))
         );
+
+        const dagitimPurchase = projeDagilimRows.reduce((sum, row) => {
+            const projeId = Number(row.proje_id);
+            if (!visibleProjectIds.has(projeId)) return sum;
+            return sum + Number(row.tutar || 0);
+        }, 0);
 
         const purchase = apiPurchase + dagitimPurchase;
         const sales = apiSales;
@@ -243,7 +274,196 @@ export default function AnaPanelSayfasi() {
             toplamIk,
             toplamMaliyet: toplamMuhasebe + toplamIk,
         };
-    }, [rows, projeDagilimRows, muhasebeRows, ikRows]);
+    }, [rows, projeDagilimRows, muhasebeRows, ikRows, projects]);
+
+    const handleDagilimRowsChange = async (updatedRows, meta) => {
+        const previousDagilimRows = projeDagilimRows;
+        const previousIkRows = ikRows;
+        const previousMuhasebeRows = muhasebeRows;
+
+        try {
+            setSavingDagilim(true);
+            setError("");
+
+            setProjeDagilimRows(updatedRows);
+            console.log("Dağılım güncellendi:", meta);
+
+            if (!meta?.type) return;
+
+            if (meta.type === "move") {
+                const sourceRows = meta.item?.sourceRows || [];
+
+                for (const row of sourceRows) {
+                    const tableName = getSourceTableName(row);
+                    if (!tableName) continue;
+
+                    const { error: moveError } = await supabase
+                        .from(tableName)
+                        .update({
+                            proje_id: Number(meta.targetProjectId),
+                        })
+                        .eq("id", row.kayit_id || row.id);
+
+                    if (moveError) throw moveError;
+                }
+
+                setIkRows((prev) =>
+                    prev.map((row) => {
+                        const matched = sourceRows.find(
+                            (s) =>
+                                String(s.kaynak_tablo).toLowerCase() === "ik" &&
+                                String(s.kayit_id || s.id) === String(row.id)
+                        );
+
+                        if (!matched) return row;
+
+                        return {
+                            ...row,
+                            proje_id: Number(meta.targetProjectId),
+                        };
+                    })
+                );
+
+                setMuhasebeRows((prev) =>
+                    prev.map((row) => {
+                        const matched = sourceRows.find(
+                            (s) =>
+                                String(s.kaynak_tablo).toLowerCase() === "muhasebe" &&
+                                String(s.kayit_id || s.id) === String(row.id)
+                        );
+
+                        if (!matched) return row;
+
+                        return {
+                            ...row,
+                            proje_id: Number(meta.targetProjectId),
+                        };
+                    })
+                );
+            }
+
+            if (meta.type === "delete") {
+                const deletedRows = meta.deletedRows || [];
+
+                for (const row of deletedRows) {
+                    const tableName = getSourceTableName(row);
+                    if (!tableName) continue;
+
+                    const { error: deleteError } = await supabase
+                        .from(tableName)
+                        .delete()
+                        .eq("id", row.kayit_id || row.id);
+
+                    if (deleteError) throw deleteError;
+                }
+
+                setIkRows((prev) =>
+                    prev.filter(
+                        (row) =>
+                            !deletedRows.some(
+                                (d) =>
+                                    String(d.kaynak_tablo).toLowerCase() === "ik" &&
+                                    String(d.kayit_id || d.id) === String(row.id)
+                            )
+                    )
+                );
+
+                setMuhasebeRows((prev) =>
+                    prev.filter(
+                        (row) =>
+                            !deletedRows.some(
+                                (d) =>
+                                    String(d.kaynak_tablo).toLowerCase() === "muhasebe" &&
+                                    String(d.kayit_id || d.id) === String(row.id)
+                            )
+                    )
+                );
+            }
+
+            if (meta.type === "edit") {
+                const sourceRows = meta.item?.sourceRows || [];
+                const oldTotal = sourceRows.reduce(
+                    (sum, r) => sum + Number(r.tutar || 0),
+                    0
+                );
+                const newTotal = Number(meta.form?.tutar || 0);
+                const ratio = oldTotal > 0 ? newTotal / oldTotal : 1;
+
+                for (const row of sourceRows) {
+                    const tableName = getSourceTableName(row);
+                    if (!tableName) continue;
+
+                    const yeniTutar = Number(row.tutar || 0) * ratio;
+
+                    if (tableName === "ik") {
+                        const { error: editError } = await supabase
+                            .from("ik")
+                            .update({
+                                tutar: yeniTutar,
+                            })
+                            .eq("id", row.kayit_id || row.id);
+
+                        if (editError) throw editError;
+                    }
+
+                    if (tableName === "muhasebe") {
+                        const { error: editError } = await supabase
+                            .from("muhasebe")
+                            .update({
+                                hesap_adi: meta.form?.hesap_adi || "",
+                                tutar: yeniTutar,
+                            })
+                            .eq("id", row.kayit_id || row.id);
+
+                        if (editError) throw editError;
+                    }
+                }
+
+                setIkRows((prev) =>
+                    prev.map((row) => {
+                        const matched = sourceRows.find(
+                            (s) =>
+                                String(s.kaynak_tablo).toLowerCase() === "ik" &&
+                                String(s.kayit_id || s.id) === String(row.id)
+                        );
+
+                        if (!matched) return row;
+
+                        return {
+                            ...row,
+                            tutar: Number(matched.tutar || 0) * ratio,
+                        };
+                    })
+                );
+
+                setMuhasebeRows((prev) =>
+                    prev.map((row) => {
+                        const matched = sourceRows.find(
+                            (s) =>
+                                String(s.kaynak_tablo).toLowerCase() === "muhasebe" &&
+                                String(s.kayit_id || s.id) === String(row.id)
+                        );
+
+                        if (!matched) return row;
+
+                        return {
+                            ...row,
+                            hesap_adi: meta.form?.hesap_adi || row.hesap_adi,
+                            tutar: Number(matched.tutar || 0) * ratio,
+                        };
+                    })
+                );
+            }
+        } catch (err) {
+            console.error("Dağılım kayıt hatası:", err);
+            setProjeDagilimRows(previousDagilimRows);
+            setIkRows(previousIkRows);
+            setMuhasebeRows(previousMuhasebeRows);
+            setError(err.message || "Dağılım değişikliği kaydedilemedi.");
+        } finally {
+            setSavingDagilim(false);
+        }
+    };
 
     return (
         <div className="app">
@@ -275,7 +495,7 @@ export default function AnaPanelSayfasi() {
                     <button
                         className="btn-fetch"
                         onClick={fetchData}
-                        disabled={loading}
+                        disabled={loading || savingDagilim}
                     >
                         {loading ? "Yükleniyor..." : "Veri Getir"}
                     </button>
@@ -367,6 +587,7 @@ export default function AnaPanelSayfasi() {
                                             allRows={rows}
                                             projeDagilimRows={projeDagilimRows}
                                             selectedMonth={selectedMonth}
+                                            onDagilimRowsChange={handleDagilimRowsChange}
                                         />
                                     ) : (
                                         <ProjeTablosu2

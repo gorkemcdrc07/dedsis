@@ -1,42 +1,73 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import "./projeOperasyon.css";
 import { supabase } from "../../lib/supabase";
 
-// ======================================================
-// YARDIMCI
-// ======================================================
-
-function formatCurrency(value) {
+// ─── FORMAT HELPERS ───────────────────────────────────────────────────────────
+function fCurrency(v) {
     return new Intl.NumberFormat("tr-TR", {
         style: "currency",
         currency: "TRY",
         maximumFractionDigits: 0,
-    }).format(Number(value || 0));
+    }).format(Number(v || 0));
 }
 
-function exportExcel(data, fileName, sheetName = "Sayfa1") {
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-    XLSX.writeFile(workbook, `${fileName}.xlsx`);
+function fDate(v) {
+    return v ? new Date(v).toLocaleDateString("tr-TR") : "—";
 }
 
-function formatDateTR(dateValue) {
-    if (!dateValue) return "";
-    return new Date(dateValue).toLocaleDateString("tr-TR");
+function fPct(v) {
+    return v ? `%${v}` : "—";
 }
 
-function formatPercent(value) {
-    if (value === null || value === undefined || value === "") return "";
-    return `%${value}`;
+function fMoney(v) {
+    return `₺${Number(v || 0).toLocaleString("tr-TR")}`;
 }
 
-function formatMoneyText(value) {
-    return `₺${Number(value || 0).toLocaleString("tr-TR")}`;
+function exportXLSX(data, fileName, sheet = "Sayfa1") {
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheet);
+    XLSX.writeFile(wb, `${fileName}.xlsx`);
 }
 
-function mapVehicleRow(item) {
+// ─── SAFE KEY HELPERS ─────────────────────────────────────────────────────────
+function makeRowKey(row, index = 0) {
+    return [
+        row?.id ?? "noid",
+        row?.plaka ?? "noplate",
+        row?.musteri ?? "nocustomer",
+        row?.surucu ?? "nodriver",
+        row?.sira ?? index,
+        index,
+    ].join("__");
+}
+
+function makeSummaryKey(row, index = 0) {
+    return [row?.musteri ?? "Bilinmeyen", row?.sira ?? index, index].join("__");
+}
+
+function warnDuplicateIds(rows) {
+    const counts = new Map();
+
+    rows.forEach((row) => {
+        const id = row?.id;
+        if (id == null) return;
+        counts.set(id, (counts.get(id) || 0) + 1);
+    });
+
+    const duplicates = [...counts.entries()].filter(([, count]) => count > 1);
+
+    if (duplicates.length > 0) {
+        console.warn(
+            "Duplicate row.id bulundu:",
+            duplicates.map(([id, count]) => ({ id, count }))
+        );
+    }
+}
+
+// ─── DATA HELPERS ─────────────────────────────────────────────────────────────
+function mapRow(item) {
     return {
         id: item.id,
         sira: item.sira ?? "",
@@ -55,10 +86,11 @@ function mapVehicleRow(item) {
         giydirme: item.giydirme ? "Var" : "Yok",
         sozlesme: item.sozlesme_var ? "Var" : "Yok",
         senet: item.senet_var ? "Var" : "Yok",
-        senetTutari: formatMoneyText(item.senet_tutari),
+        senetTutari: fMoney(item.senet_tutari),
         aracMetreKup: item.arac_metre_kup ?? "",
-        yakitOrani: formatPercent(item.yakit_orani),
-        baslangicTarihi: formatDateTR(item.baslangic_tarihi),
+        yakitOrani: fPct(item.yakit_orani),
+        baslangicTarihi: item.baslangic_tarihi ?? "",
+        baslangicTarihiText: fDate(item.baslangic_tarihi),
         satis: Number(item.satis || 0),
         maliyet: Number(item.maliyet || 0),
         vehicleImage: item.vehicle_image_url ?? null,
@@ -69,15 +101,14 @@ function mapVehicleRow(item) {
     };
 }
 
-function buildSummaryRows(vehicleRows) {
+function buildSummary(rows) {
     const grouped = {};
 
-    vehicleRows.forEach((row) => {
-        const musteri = row.musteri || "Bilinmeyen";
+    rows.forEach((r) => {
+        const musteri = r.musteri || "Bilinmeyen";
 
         if (!grouped[musteri]) {
             grouped[musteri] = {
-                sira: 0,
                 musteri,
                 aracSayisi: 0,
                 dedike: 0,
@@ -91,17 +122,16 @@ function buildSummaryRows(vehicleRows) {
             };
         }
 
-        grouped[musteri].aracSayisi += 1;
+        grouped[musteri].aracSayisi++;
+        if (r.dedikeBool) grouped[musteri].dedike++;
+        if (r.ftlBool) grouped[musteri].ftl++;
 
-        if (row.dedikeBool) grouped[musteri].dedike += 1;
-        if (row.ftlBool) grouped[musteri].ftl += 1;
-
-        if (row.aracTuru === "Panelvan") grouped[musteri].panelvan += 1;
-        if (row.aracTuru === "H.Kamyon") grouped[musteri].hKamyon += 1;
-        if (row.aracTuru === "Kamyonet") grouped[musteri].kamyonet += 1;
-        if (row.aracTuru === "Minivan") grouped[musteri].minivan += 1;
-        if (row.aracTuru === "Onteker") grouped[musteri].onteker += 1;
-        if (row.aracTuru === "Tır") grouped[musteri].tir += 1;
+        if (r.aracTuru === "Panelvan") grouped[musteri].panelvan++;
+        if (r.aracTuru === "H.Kamyon") grouped[musteri].hKamyon++;
+        if (r.aracTuru === "Kamyonet") grouped[musteri].kamyonet++;
+        if (r.aracTuru === "Minivan") grouped[musteri].minivan++;
+        if (r.aracTuru === "Onteker") grouped[musteri].onteker++;
+        if (r.aracTuru === "Tır") grouped[musteri].tir++;
     });
 
     return Object.values(grouped).map((item, index) => ({
@@ -110,53 +140,77 @@ function buildSummaryRows(vehicleRows) {
     }));
 }
 
-function Badge({ value, variant = "default" }) {
-    const cls = {
-        yes: "badge badge--yes",
-        no: "badge badge--no",
-        region: "badge badge--region",
-        info: "badge badge--info",
-        warn: "badge badge--warn",
-        default: "badge badge--default",
-    }[variant] || "badge badge--default";
-
-    return <span className={cls}>{value}</span>;
-}
-
-function KV({ label, value }) {
+// ─── SMALL UI ATOMS ───────────────────────────────────────────────────────────
+function DocPill({ label, ok }) {
     return (
-        <div className="kv">
-            <span className="kv__label">{label}</span>
-            <span className="kv__value">{value || "—"}</span>
-        </div>
-    );
-}
-
-function StatCard({ label, value, subtext, accent = false }) {
-    return (
-        <div className={`stat-card${accent ? " stat-card--accent" : ""}`}>
-            <span className="stat-card__label">{label}</span>
-            <strong className="stat-card__value">{value}</strong>
-            {subtext ? <span className="stat-card__sub">{subtext}</span> : null}
-        </div>
-    );
-}
-
-function ImageSlot({ label, image, onUpload }) {
-    const ref = React.useRef(null);
-
-    return (
-        <div className="img-slot" onClick={() => ref.current?.click()}>
-            {image ? (
-                <img src={image} alt={label} className="img-slot__preview" />
+        <span className={`doc-pill ${ok ? "doc-pill--ok" : "doc-pill--missing"}`}>
+            {ok ? (
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <path
+                        d="M2 5L4 7L8 3"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    />
+                </svg>
             ) : (
-                <div className="img-slot__empty">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <rect x="3" y="3" width="18" height="18" rx="3" />
-                        <circle cx="8.5" cy="8.5" r="1.5" />
-                        <polyline points="21 15 16 10 5 21" />
-                    </svg>
-                    <span>{label}</span>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <path
+                        d="M3 3L7 7M7 3L3 7"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                    />
+                </svg>
+            )}
+            {label}
+        </span>
+    );
+}
+
+function TypeBadge({ type }) {
+    const colors = {
+        Panelvan: "badge-blue",
+        "H.Kamyon": "badge-orange",
+        Kamyonet: "badge-teal",
+        Minivan: "badge-purple",
+        Onteker: "badge-red",
+        Tır: "badge-gray",
+    };
+
+    return <span className={`type-badge ${colors[type] || "badge-gray"}`}>{type || "—"}</span>;
+}
+
+function KarPill({ kar }) {
+    return (
+        <span className={`kar-pill ${kar >= 0 ? "kar-pill--pos" : "kar-pill--neg"}`}>
+            {fCurrency(kar)}
+        </span>
+    );
+}
+
+// ─── IMAGE UPLOADER ───────────────────────────────────────────────────────────
+function ImageUploader({ label, image, onUpload, icon }) {
+    const ref = useRef(null);
+
+    return (
+        <div className="img-uploader" onClick={() => ref.current?.click()}>
+            {image ? (
+                <>
+                    <img src={image} alt={label} className="img-uploader__img" />
+                    <div className="img-uploader__overlay">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M10 3V17M3 10H17" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+                        </svg>
+                        <span>Değiştir</span>
+                    </div>
+                </>
+            ) : (
+                <div className="img-uploader__empty">
+                    {icon}
+                    <span className="img-uploader__label">{label}</span>
+                    <span className="img-uploader__hint">Tıkla veya sürükle</span>
                 </div>
             )}
 
@@ -174,238 +228,569 @@ function ImageSlot({ label, image, onUpload }) {
     );
 }
 
-function SectionTitle({ title, desc, right }) {
+// ─── FORM INPUT HELPERS ───────────────────────────────────────────────────────
+function FGroup({ label, children }) {
     return (
-        <div className="section-title">
-            <div>
-                <h2>{title}</h2>
-                {desc ? <p>{desc}</p> : null}
-            </div>
-            {right ? <div>{right}</div> : null}
+        <div className="fg">
+            <label className="fg__label">{label}</label>
+            {children}
         </div>
     );
 }
 
-function DetailModal({ row, onClose }) {
+function FInput(props) {
+    return <input className="fg__input" {...props} />;
+}
+
+function FSelect({ options, ...props }) {
+    return (
+        <select className="fg__input" {...props}>
+            <option value="">Seç...</option>
+            {options.map((o) => (
+                <option key={o} value={o}>
+                    {o}
+                </option>
+            ))}
+        </select>
+    );
+}
+
+// ─── DRAWER ───────────────────────────────────────────────────────────────────
+const EMPTY_FORM = {
+    musteri: "",
+    plaka: "",
+    aracTelefonu: "",
+    surucu: "",
+    cariAdi: "",
+    kurye: "",
+    bolge: "",
+    bolgeDagilim: "",
+    aracTuru: "",
+    marka: "",
+    model: "",
+    yil: "",
+    giydirme: false,
+    sozlesme: false,
+    senet: false,
+    senetTutari: "",
+    aracMetreKup: "",
+    yakitOrani: "",
+    baslangicTarihi: "",
+    satis: "",
+    maliyet: "",
+    note: "",
+    vehicleImage: null,
+    licenseImage: null,
+};
+
+function Drawer({ open, row, onClose, onSave }) {
+    const [form, setForm] = useState(EMPTY_FORM);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        if (row) {
+            setForm({
+                musteri: row.musteri || "",
+                plaka: row.plaka || "",
+                aracTelefonu: row.aracTelefonu || "",
+                surucu: row.surucu || "",
+                cariAdi: row.cariAdi || "",
+                kurye: row.kurye || "",
+                bolge: row.bolge || "",
+                bolgeDagilim: row.bolgeDagilim || "",
+                aracTuru: row.aracTuru || "",
+                marka: row.marka || "",
+                model: row.model || "",
+                yil: row.yil || "",
+                giydirme: row.giydirme === "Var",
+                sozlesme: row.sozlesme === "Var",
+                senet: row.senet === "Var",
+                senetTutari: String(row.senetTutari || "").replace("₺", "").replace(/\./g, ""),
+                aracMetreKup: row.aracMetreKup || "",
+                yakitOrani: String(row.yakitOrani || "").replace("%", ""),
+                baslangicTarihi: row.baslangicTarihi || "",
+                satis: row.satis || "",
+                maliyet: row.maliyet || "",
+                note: row.note || "",
+                vehicleImage: row.vehicleImage || null,
+                licenseImage: row.licenseImage || null,
+            });
+        } else {
+            setForm(EMPTY_FORM);
+        }
+    }, [row, open]);
+
+    const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            await onSave({ ...form, id: row?.id });
+        } finally {
+            setSaving(false);
+            onClose();
+        }
+    };
+
+    if (!open) return null;
+
+    return (
+        <>
+            <div className="drawer-backdrop" onClick={onClose} />
+            <aside className="drawer">
+                <div className="drawer__header">
+                    <div>
+                        <div className="drawer__title">{row ? "Araç Düzenle" : "Yeni Araç Ekle"}</div>
+                        <div className="drawer__sub">{row ? row.plaka : "Tüm bilgileri doldurun"}</div>
+                    </div>
+
+                    <button className="drawer__close" onClick={onClose}>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path
+                                d="M2 2L14 14M14 2L2 14"
+                                stroke="currentColor"
+                                strokeWidth="1.6"
+                                strokeLinecap="round"
+                            />
+                        </svg>
+                    </button>
+                </div>
+
+                <div className="drawer__body">
+                    <div className="drawer__section-title">Görseller</div>
+
+                    <div className="img-pair">
+                        <ImageUploader
+                            label="Araç Fotoğrafı"
+                            image={form.vehicleImage}
+                            onUpload={(u) => set("vehicleImage", u)}
+                            icon={
+                                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                                    <path
+                                        d="M4 20L9 14L13 18L17 12L24 20H4Z"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        strokeLinejoin="round"
+                                    />
+                                    <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+                                    <rect x="2" y="2" width="24" height="24" rx="4" stroke="currentColor" strokeWidth="1.5" />
+                                </svg>
+                            }
+                        />
+
+                        <ImageUploader
+                            label="Ruhsat / Belge"
+                            image={form.licenseImage}
+                            onUpload={(u) => set("licenseImage", u)}
+                            icon={
+                                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                                    <rect x="5" y="2" width="18" height="24" rx="3" stroke="currentColor" strokeWidth="1.5" />
+                                    <path d="M9 8H19M9 12H19M9 16H15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                                </svg>
+                            }
+                        />
+                    </div>
+
+                    <div className="drawer__section-title">Genel Bilgiler</div>
+
+                    <div className="fg-grid fg-grid--2">
+                        <FGroup label="Müşteri">
+                            <FInput value={form.musteri} onChange={(e) => set("musteri", e.target.value)} placeholder="Müşteri adı" />
+                        </FGroup>
+
+                        <FGroup label="Plaka">
+                            <FInput value={form.plaka} onChange={(e) => set("plaka", e.target.value)} placeholder="34 ABC 123" />
+                        </FGroup>
+
+                        <FGroup label="Sürücü">
+                            <FInput value={form.surucu} onChange={(e) => set("surucu", e.target.value)} />
+                        </FGroup>
+
+                        <FGroup label="Telefon">
+                            <FInput value={form.aracTelefonu} onChange={(e) => set("aracTelefonu", e.target.value)} />
+                        </FGroup>
+
+                        <FGroup label="Cari Adı">
+                            <FInput value={form.cariAdi} onChange={(e) => set("cariAdi", e.target.value)} />
+                        </FGroup>
+
+                        <FGroup label="Kurye">
+                            <FInput value={form.kurye} onChange={(e) => set("kurye", e.target.value)} />
+                        </FGroup>
+
+                        <FGroup label="Bölge">
+                            <FSelect
+                                value={form.bolge}
+                                onChange={(e) => set("bolge", e.target.value)}
+                                options={["Avrupa", "Anadolu", "Bursa", "Trakya"]}
+                            />
+                        </FGroup>
+
+                        <FGroup label="Bölge Dağılım">
+                            <FInput value={form.bolgeDagilim} onChange={(e) => set("bolgeDagilim", e.target.value)} />
+                        </FGroup>
+
+                        <FGroup label="Başlangıç Tarihi">
+                            <FInput type="date" value={form.baslangicTarihi} onChange={(e) => set("baslangicTarihi", e.target.value)} />
+                        </FGroup>
+                    </div>
+
+                    <div className="drawer__section-title">Araç Bilgileri</div>
+
+                    <div className="fg-grid fg-grid--3">
+                        <FGroup label="Araç Türü">
+                            <FSelect
+                                value={form.aracTuru}
+                                onChange={(e) => set("aracTuru", e.target.value)}
+                                options={["Panelvan", "H.Kamyon", "Kamyonet", "Minivan", "Onteker", "Tır"]}
+                            />
+                        </FGroup>
+
+                        <FGroup label="Marka">
+                            <FInput value={form.marka} onChange={(e) => set("marka", e.target.value)} />
+                        </FGroup>
+
+                        <FGroup label="Model">
+                            <FInput value={form.model} onChange={(e) => set("model", e.target.value)} />
+                        </FGroup>
+
+                        <FGroup label="Yıl">
+                            <FInput value={form.yil} onChange={(e) => set("yil", e.target.value)} type="number" min="1990" max="2030" />
+                        </FGroup>
+
+                        <FGroup label="Hacim (m³)">
+                            <FInput value={form.aracMetreKup} onChange={(e) => set("aracMetreKup", e.target.value)} />
+                        </FGroup>
+
+                        <FGroup label="Yakıt Oranı (%)">
+                            <FInput value={form.yakitOrani} onChange={(e) => set("yakitOrani", e.target.value)} type="number" />
+                        </FGroup>
+                    </div>
+
+                    <div className="drawer__section-title">Evrak & Finans</div>
+
+                    <div className="fg-grid fg-grid--2">
+                        <FGroup label="Satış (₺)">
+                            <FInput value={form.satis} onChange={(e) => set("satis", e.target.value)} type="number" />
+                        </FGroup>
+
+                        <FGroup label="Maliyet (₺)">
+                            <FInput value={form.maliyet} onChange={(e) => set("maliyet", e.target.value)} type="number" />
+                        </FGroup>
+
+                        <FGroup label="Senet Tutarı">
+                            <FInput value={form.senetTutari} onChange={(e) => set("senetTutari", e.target.value)} />
+                        </FGroup>
+                    </div>
+
+                    <div className="toggle-row">
+                        {[
+                            ["giydirme", "Giydirme"],
+                            ["sozlesme", "Sözleşme"],
+                            ["senet", "Senet"],
+                        ].map(([k, l]) => (
+                            <label key={k} className="tog-label">
+                                <div className={`tog ${form[k] ? "tog--on" : ""}`} onClick={() => set(k, !form[k])}>
+                                    <div className="tog__thumb" />
+                                </div>
+                                {l}
+                            </label>
+                        ))}
+                    </div>
+
+                    <div className="drawer__section-title">Not</div>
+
+                    <textarea
+                        className="fg__textarea"
+                        value={form.note}
+                        onChange={(e) => set("note", e.target.value)}
+                        placeholder="Araçla ilgili notlar..."
+                        rows={3}
+                    />
+                </div>
+
+                <div className="drawer__footer">
+                    <button className="drawer-btn drawer-btn--cancel" onClick={onClose}>
+                        Vazgeç
+                    </button>
+                    <button className="drawer-btn drawer-btn--save" onClick={handleSave} disabled={saving}>
+                        {saving ? "Kaydediliyor..." : row ? "Güncelle" : "Kaydet"}
+                    </button>
+                </div>
+            </aside>
+        </>
+    );
+}
+
+// ─── DETAIL PANEL ─────────────────────────────────────────────────────────────
+function DetailPanel({ row, onClose, onEdit, onImageUpload, onNoteChange }) {
     if (!row) return null;
 
     const kar = (row.satis || 0) - (row.maliyet || 0);
 
     return (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-            <div className="modal">
-                <div className="modal__header">
-                    <div>
-                        <span className="modal__plate">{row.plaka}</span>
-                        <span className="modal__name">{row.surucu}</span>
-                    </div>
-                    <button className="modal__close" onClick={onClose}>
-                        ✕
+        <div className="detail-panel">
+            <div className="detail-panel__header">
+                <div>
+                    <div className="detail-panel__plate">{row.plaka}</div>
+                    <div className="detail-panel__driver">{row.surucu}</div>
+                </div>
+
+                <div className="detail-panel__actions">
+                    <button className="icon-btn" onClick={() => onEdit(row)} title="Düzenle">
+                        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                            <path
+                                d="M10 1.5L13.5 5L5 13.5H1.5V10L10 1.5Z"
+                                stroke="currentColor"
+                                strokeWidth="1.3"
+                                strokeLinejoin="round"
+                            />
+                        </svg>
+                    </button>
+
+                    <button className="icon-btn icon-btn--close" onClick={onClose} title="Kapat">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path
+                                d="M2 2L12 12M12 2L2 12"
+                                stroke="currentColor"
+                                strokeWidth="1.4"
+                                strokeLinecap="round"
+                            />
+                        </svg>
                     </button>
                 </div>
+            </div>
 
-                <div className="modal__body">
-                    <div className="modal__section">
-                        <p className="modal__sec-title">Genel Bilgiler</p>
-                        <div className="modal__grid">
-                            <KV label="Müşteri" value={row.musteri} />
-                            <KV label="Cari Adı" value={row.cariAdi} />
-                            <KV label="Kurye" value={row.kurye} />
-                            <KV label="Telefon" value={row.aracTelefonu} />
-                            <KV label="Bölge" value={row.bolge} />
-                            <KV label="Dağılım" value={row.bolgeDagilim} />
-                        </div>
+            <div className="detail-panel__body">
+                <div className="dp-imgs">
+                    <ImageUploader
+                        label="Araç Fotoğrafı"
+                        image={row.vehicleImage}
+                        onUpload={(u) => onImageUpload(row.id, "vehicleImage", u)}
+                        icon={
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                <path
+                                    d="M3 16L8 10L12 14L15 9L21 16H3Z"
+                                    stroke="currentColor"
+                                    strokeWidth="1.4"
+                                    strokeLinejoin="round"
+                                />
+                                <circle cx="8" cy="7" r="2" stroke="currentColor" strokeWidth="1.4" />
+                                <rect x="1" y="1" width="22" height="22" rx="4" stroke="currentColor" strokeWidth="1.4" />
+                            </svg>
+                        }
+                    />
+
+                    <ImageUploader
+                        label="Ruhsat"
+                        image={row.licenseImage}
+                        onUpload={(u) => onImageUpload(row.id, "licenseImage", u)}
+                        icon={
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                <rect x="4" y="1" width="16" height="22" rx="3" stroke="currentColor" strokeWidth="1.4" />
+                                <path d="M8 7H16M8 11H16M8 15H13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                            </svg>
+                        }
+                    />
+                </div>
+
+                <div className="dp-finans">
+                    <div className="dp-fin-item">
+                        <span>Satış</span>
+                        <strong>{fCurrency(row.satis)}</strong>
                     </div>
-
-                    <div className="modal__section">
-                        <p className="modal__sec-title">Araç Bilgileri</p>
-                        <div className="modal__grid">
-                            <KV label="Araç Türü" value={row.aracTuru} />
-                            <KV label="Marka" value={row.marka} />
-                            <KV label="Model" value={row.model} />
-                            <KV label="Yıl" value={row.yil} />
-                            <KV label="Hacim" value={row.aracMetreKup} />
-                            <KV label="Yakıt Oranı" value={row.yakitOrani} />
-                        </div>
+                    <div className="dp-fin-item">
+                        <span>Maliyet</span>
+                        <strong>{fCurrency(row.maliyet)}</strong>
                     </div>
-
-                    <div className="modal__section">
-                        <p className="modal__sec-title">Evrak & Finans</p>
-                        <div className="modal__grid">
-                            <KV label="Sözleşme" value={row.sozlesme} />
-                            <KV label="Senet" value={row.senet} />
-                            <KV label="Senet Tutarı" value={row.senetTutari} />
-                            <KV label="Satış" value={formatCurrency(row.satis)} />
-                            <KV label="Maliyet" value={formatCurrency(row.maliyet)} />
-                            <KV label="Kar" value={formatCurrency(kar)} />
-                        </div>
+                    <div className={`dp-fin-item dp-fin-item--kar ${kar >= 0 ? "dp-fin-item--pos" : "dp-fin-item--neg"}`}>
+                        <span>Kâr</span>
+                        <strong>{fCurrency(kar)}</strong>
                     </div>
+                </div>
 
-                    {row.note ? (
-                        <div className="modal__section">
-                            <p className="modal__sec-title">Not</p>
-                            <p className="modal__note">{row.note}</p>
-                        </div>
-                    ) : null}
+                <div className="dp-docs">
+                    <DocPill label="Giydirme" ok={row.giydirme === "Var"} />
+                    <DocPill label="Sözleşme" ok={row.sozlesme === "Var"} />
+                    <DocPill label="Senet" ok={row.senet === "Var"} />
+                </div>
 
-                    {(row.vehicleImage || row.licenseImage) && (
-                        <div className="modal__section">
-                            <p className="modal__sec-title">Görseller</p>
-                            <div className="modal__images">
-                                {row.vehicleImage && <img src={row.vehicleImage} alt="Araç" className="modal__img" />}
-                                {row.licenseImage && <img src={row.licenseImage} alt="Ruhsat" className="modal__img" />}
-                            </div>
+                <div className="dp-info-grid">
+                    {[
+                        ["Müşteri", row.musteri],
+                        ["Cari Adı", row.cariAdi],
+                        ["Kurye", row.kurye],
+                        ["Telefon", row.aracTelefonu],
+                        ["Bölge", row.bolge],
+                        ["Dağılım", row.bolgeDagilim],
+                        ["Marka", row.marka],
+                        ["Model", row.model],
+                        ["Yıl", row.yil],
+                        ["Tür", row.aracTuru],
+                        ["Hacim", row.aracMetreKup],
+                        ["Yakıt", row.yakitOrani],
+                        ["Senet Tutarı", row.senetTutari],
+                        ["Başlangıç", row.baslangicTarihiText || row.baslangicTarihi],
+                    ].map(([k, v]) => (
+                        <div key={k} className="dp-info-row">
+                            <span className="dp-info-label">{k}</span>
+                            <span className="dp-info-val">{v || "—"}</span>
                         </div>
-                    )}
+                    ))}
+                </div>
+
+                <div className="dp-note-wrap">
+                    <div className="dp-note-label">Not</div>
+                    <textarea
+                        className="dp-note-input"
+                        value={row.note || ""}
+                        onChange={(e) => onNoteChange(row.id, e.target.value)}
+                        placeholder="Not ekle..."
+                        rows={3}
+                    />
                 </div>
             </div>
         </div>
     );
 }
 
-function VehicleCard({ row, onDetail, onImageUpload, onNoteChange }) {
-    const kar = (row.satis || 0) - (row.maliyet || 0);
+// ─── STATS STRIP ──────────────────────────────────────────────────────────────
+function StatsStrip({ rows, eksik }) {
+    const totalSatis = rows.reduce((sum, r) => sum + r.satis, 0);
+    const totalMaliyet = rows.reduce((sum, r) => sum + r.maliyet, 0);
+    const totalKar = totalSatis - totalMaliyet;
+
+    const stats = [
+        { label: "Toplam Araç", value: rows.length, accent: "blue" },
+        { label: "Eksik Evrak", value: eksik, accent: "red" },
+        { label: "Toplam Satış", value: fCurrency(totalSatis), accent: "teal" },
+        { label: "Toplam Maliyet", value: fCurrency(totalMaliyet), accent: "amber" },
+        { label: "Toplam Kâr", value: fCurrency(totalKar), accent: totalKar >= 0 ? "green" : "red" },
+    ];
 
     return (
-        <div className="vcard">
-            <div className="vcard__top">
-                <div className="vcard__top-left">
-                    <span className="vcard__plate">{row.plaka}</span>
-                    <span className="vcard__musteri">{row.musteri}</span>
+        <div className="stats-strip">
+            {stats.map((s) => (
+                <div key={s.label} className={`stat-item stat-item--${s.accent}`}>
+                    <div className="stat-item__label">{s.label}</div>
+                    <div className="stat-item__value">{s.value}</div>
                 </div>
-
-                <div className="vcard__badges">
-                    <Badge value={row.bolge} variant="region" />
-                    <Badge value={row.giydirme} variant={row.giydirme === "Var" ? "yes" : "no"} />
-                </div>
-            </div>
-
-            <div className="vcard__dagilim">{row.bolgeDagilim}</div>
-
-            <div className="vcard__section">
-                <div className="vcard__grid2">
-                    <KV label="Sürücü" value={row.surucu} />
-                    <KV label="Kurye" value={row.kurye} />
-                    <KV label="Cari Adı" value={row.cariAdi} />
-                    <KV label="Telefon" value={row.aracTelefonu} />
-                </div>
-            </div>
-
-            <div className="vcard__divider" />
-
-            <div className="vcard__section">
-                <div className="vcard__grid3">
-                    <KV label="Marka" value={row.marka} />
-                    <KV label="Model" value={row.model} />
-                    <KV label="Yıl" value={row.yil} />
-                    <KV label="Tür" value={row.aracTuru} />
-                    <KV label="Hacim" value={row.aracMetreKup} />
-                    <KV label="Yakıt" value={row.yakitOrani} />
-                </div>
-            </div>
-
-            <div className="vcard__divider" />
-
-            <div className="vcard__chips">
-                <span className="chip chip--doc">{row.sozlesme === "Var" ? "✓" : "✗"} Sözleşme</span>
-                <span className="chip chip--doc">{row.senet === "Var" ? "✓" : "✗"} Senet</span>
-                <span className="chip chip--money">{row.senetTutari}</span>
-                <span className="chip chip--date">📅 {row.baslangicTarihi}</span>
-                <span className={`chip ${kar >= 0 ? "chip--profit" : "chip--loss"}`}>Kar: {formatCurrency(kar)}</span>
-            </div>
-
-            <div className="vcard__divider" />
-
-            <div className="vcard__images">
-                <ImageSlot
-                    label="Araç Görseli"
-                    image={row.vehicleImage}
-                    onUpload={(url) => onImageUpload(row.id, "vehicleImage", url)}
-                />
-                <ImageSlot
-                    label="Ruhsat Görseli"
-                    image={row.licenseImage}
-                    onUpload={(url) => onImageUpload(row.id, "licenseImage", url)}
-                />
-            </div>
-
-            <div className="vcard__note">
-                <textarea
-                    placeholder="Not ekle..."
-                    value={row.note}
-                    onChange={(e) => onNoteChange(row.id, e.target.value)}
-                />
-            </div>
-
-            <div className="vcard__footer">
-                <button className="btn btn--primary" onClick={() => onDetail(row)}>
-                    Detay Gör
-                </button>
-                <button className="btn btn--ghost">Düzenle</button>
-            </div>
+            ))}
         </div>
     );
 }
 
-function ListRow({ row, onDetail }) {
-    const kar = (row.satis || 0) - (row.maliyet || 0);
-
-    return (
-        <div className="list-row">
-            <span className="list-row__num">{row.sira}</span>
-
-            <div className="list-row__main">
-                <div className="list-row__top">
-                    <span className="list-row__plate">{row.plaka}</span>
-                    <span className="list-row__driver">{row.surucu}</span>
-                    <span className="list-row__car">
-                        {row.marka} {row.model} · {row.yil}
-                    </span>
-                </div>
-                <div className="list-row__sub">
-                    {row.musteri} · {row.bolgeDagilim} · Kurye: {row.kurye}
-                </div>
-            </div>
-
-            <div className="list-row__meta">
-                <Badge value={row.bolge} variant="region" />
-                <Badge value={row.giydirme} variant={row.giydirme === "Var" ? "yes" : "no"} />
-                <span className="chip chip--doc">{row.aracMetreKup}</span>
-                <span className="chip chip--doc">{row.yakitOrani}</span>
-                <span className={`chip ${kar >= 0 ? "chip--profit" : "chip--loss"}`}>{formatCurrency(kar)}</span>
-            </div>
-
-            <div className="list-row__actions">
-                <button className="btn btn--primary btn--sm" onClick={() => onDetail(row)}>
-                    Detay
-                </button>
-                <button className="btn btn--ghost btn--sm">Düzenle</button>
-            </div>
-        </div>
-    );
-}
-
-function DataTable({ columns, rows, emptyText = "Kayıt bulunamadı." }) {
+// ─── MAIN TABLE ───────────────────────────────────────────────────────────────
+function VehicleTable({ rows, selectedKey, onSelect }) {
     if (!rows.length) {
-        return <div className="po-empty">{emptyText}</div>;
+        return (
+            <div className="table-empty">
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none" style={{ opacity: 0.35, marginBottom: 10 }}>
+                    <rect x="4" y="4" width="32" height="32" rx="6" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M12 20H28M12 26H22" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    <path d="M12 14H28" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                Kayıt bulunamadı.
+            </div>
+        );
     }
 
     return (
-        <div className="table-wrap">
-            <table className="modern-table">
+        <div className="vtable-wrap">
+            <table className="vtable">
                 <thead>
                     <tr>
-                        {columns.map((col) => (
-                            <th key={col.key}>{col.title}</th>
-                        ))}
+                        <th>#</th>
+                        <th>Plaka</th>
+                        <th>Müşteri</th>
+                        <th>Sürücü</th>
+                        <th>Araç Türü</th>
+                        <th>Bölge</th>
+                        <th>Evrak</th>
+                        <th>Kâr / Zarar</th>
+                        <th>Satış</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {rows.map((row, idx) => (
-                        <tr key={row.id || row.plaka || row.sira || idx}>
-                            {columns.map((col) => (
-                                <td key={col.key}>
-                                    {typeof col.render === "function" ? col.render(row[col.key], row, idx) : row[col.key] || "—"}
+                    {rows.map((row, index) => {
+                        const kar = row.satis - row.maliyet;
+                        const rowKey = makeRowKey(row, index);
+                        const isSelected = selectedKey === rowKey;
+                        const hasIssue = row.sozlesme === "Yok" || row.senet === "Yok";
+
+                        return (
+                            <tr
+                                key={rowKey}
+                                className={`vtable__row ${isSelected ? "vtable__row--selected" : ""} ${hasIssue ? "vtable__row--warn" : ""}`}
+                                onClick={() => onSelect(row, rowKey)}
+                            >
+                                <td className="vtable__num">{row.sira}</td>
+                                <td>
+                                    <span className="vtable__plate">{row.plaka}</span>
+                                </td>
+                                <td className="vtable__musteri">{row.musteri}</td>
+                                <td className="vtable__muted">{row.surucu || "—"}</td>
+                                <td>
+                                    <TypeBadge type={row.aracTuru} />
+                                </td>
+                                <td className="vtable__muted">{row.bolge}</td>
+                                <td>
+                                    <div className="vtable__docs">
+                                        <span
+                                            className={`doc-dot ${row.sozlesme === "Var" ? "doc-dot--ok" : "doc-dot--bad"}`}
+                                            title={`Sözleşme: ${row.sozlesme}`}
+                                        />
+                                        <span
+                                            className={`doc-dot ${row.senet === "Var" ? "doc-dot--ok" : "doc-dot--bad"}`}
+                                            title={`Senet: ${row.senet}`}
+                                        />
+                                        <span
+                                            className={`doc-dot ${row.giydirme === "Var" ? "doc-dot--ok" : "doc-dot--muted"}`}
+                                            title={`Giydirme: ${row.giydirme}`}
+                                        />
+                                    </div>
+                                </td>
+                                <td>
+                                    <KarPill kar={kar} />
+                                </td>
+                                <td className="vtable__money">{fCurrency(row.satis)}</td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+// ─── SUMMARY TAB ──────────────────────────────────────────────────────────────
+function SummaryTab({ summaryRows }) {
+    return (
+        <div className="vtable-wrap">
+            <table className="vtable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Müşteri</th>
+                        <th>Araç</th>
+                        <th>Dedike</th>
+                        <th>FTL</th>
+                        <th>Panelvan</th>
+                        <th>H.Kamyon</th>
+                        <th>Kamyonet</th>
+                        <th>Minivan</th>
+                        <th>Onteker</th>
+                        <th>Tır</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {summaryRows.map((r, index) => (
+                        <tr key={makeSummaryKey(r, index)} className="vtable__row">
+                            <td className="vtable__num">{r.sira}</td>
+                            <td className="vtable__musteri">{r.musteri}</td>
+                            {[r.aracSayisi, r.dedike, r.ftl, r.panelvan, r.hKamyon, r.kamyonet, r.minivan, r.onteker, r.tir].map((v, i) => (
+                                <td key={`${makeSummaryKey(r, index)}__${i}`} className="vtable__center">
+                                    {v > 0 ? <span className="count-pill">{v}</span> : <span className="vtable__muted">—</span>}
                                 </td>
                             ))}
                         </tr>
@@ -416,50 +801,89 @@ function DataTable({ columns, rows, emptyText = "Kayıt bulunamadı." }) {
     );
 }
 
-// ======================================================
-// ANA COMPONENT
-// ======================================================
+// ─── EVRAK TAB ────────────────────────────────────────────────────────────────
+function EvrakTab({ rows, selectedKey, onSelect }) {
+    return <VehicleTable rows={rows} selectedKey={selectedKey} onSelect={onSelect} />;
+}
 
+// ─── FINANS TAB ───────────────────────────────────────────────────────────────
+function FinansTab({ rows, selectedKey, onSelect }) {
+    const totalSatis = rows.reduce((sum, r) => sum + r.satis, 0);
+    const totalMaliyet = rows.reduce((sum, r) => sum + r.maliyet, 0);
+    const totalKar = totalSatis - totalMaliyet;
+
+    const sortedRows = [...rows].sort((a, b) => (b.satis - b.maliyet) - (a.satis - a.maliyet));
+
+    return (
+        <>
+            <div className="finans-strip">
+                <div className="finans-strip__item">
+                    <span>Toplam Satış</span>
+                    <strong>{fCurrency(totalSatis)}</strong>
+                </div>
+                <div className="finans-strip__item">
+                    <span>Toplam Maliyet</span>
+                    <strong>{fCurrency(totalMaliyet)}</strong>
+                </div>
+                <div className="finans-strip__item">
+                    <span>Toplam Kâr</span>
+                    <strong className={totalKar < 0 ? "text-neg" : ""}>{fCurrency(totalKar)}</strong>
+                </div>
+            </div>
+
+            <VehicleTable rows={sortedRows} selectedKey={selectedKey} onSelect={onSelect} />
+        </>
+    );
+}
+
+// ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 export default function ProjeOperasyonSayfasi() {
     const [rows, setRows] = useState([]);
     const [summaryRows, setSummaryRows] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+
     const [search, setSearch] = useState("");
     const [bolge, setBolge] = useState("Tümü");
-    const [view, setView] = useState("card");
-    const [tab, setTab] = useState("ozet");
-    const [modal, setModal] = useState(null);
+    const [tab, setTab] = useState("araclar");
 
-    const loadAraclar = useCallback(async () => {
+    const [selectedRow, setSelectedRow] = useState(null);
+    const [selectedRowKey, setSelectedRowKey] = useState(null);
+
+    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [editRow, setEditRow] = useState(null);
+
+    const BOLGE_LIST = ["Tümü", "Avrupa", "Anadolu", "Bursa", "Trakya"];
+
+    const load = useCallback(async () => {
         setLoading(true);
         setError("");
 
-        const { data, error } = await supabase
+        const { data, error: dbError } = await supabase
             .from("araclar")
             .select("*")
             .order("sira", { ascending: true });
 
-        if (error) {
-            console.error(error);
-            setError("Araç verileri alınırken hata oluştu.");
-            setRows([]);
-            setSummaryRows([]);
+        if (dbError) {
+            setError("Araç verileri alınamadı.");
             setLoading(false);
             return;
         }
 
-        const mappedRows = (data || []).map(mapVehicleRow);
-        setRows(mappedRows);
-        setSummaryRows(buildSummaryRows(mappedRows));
+        const mapped = (data || []).map(mapRow);
+
+        warnDuplicateIds(mapped);
+
+        setRows(mapped);
+        setSummaryRows(buildSummary(mapped));
         setLoading(false);
     }, []);
 
     useEffect(() => {
-        loadAraclar();
-    }, [loadAraclar]);
+        load();
+    }, [load]);
 
-    const filteredVehicles = useMemo(() => {
+    const filtered = useMemo(() => {
         const q = search.toLowerCase().trim();
 
         return rows.filter((r) => {
@@ -473,10 +897,8 @@ export default function ProjeOperasyonSayfasi() {
                     r.cariAdi,
                     r.kurye,
                     r.bolge,
-                    r.bolgeDagilim,
                     r.marka,
                     r.model,
-                    r.aracTuru,
                 ]
                     .join(" ")
                     .toLowerCase()
@@ -486,454 +908,257 @@ export default function ProjeOperasyonSayfasi() {
         });
     }, [rows, search, bolge]);
 
-    const eksikEvrakRows = useMemo(() => {
-        return rows.filter((r) => r.sozlesme === "Yok" || r.senet === "Yok");
-    }, [rows]);
+    const eksikEvrakRows = useMemo(
+        () => rows.filter((r) => r.sozlesme === "Yok" || r.senet === "Yok"),
+        [rows]
+    );
 
-    const finansRows = useMemo(() => {
-        return rows.map((r) => ({
-            ...r,
-            kar: (r.satis || 0) - (r.maliyet || 0),
-        }));
-    }, [rows]);
-
-    const summaryTotals = useMemo(() => {
-        return summaryRows.reduce(
-            (acc, row) => {
-                acc.toplam += Number(row.aracSayisi) || 0;
-                acc.dedike += Number(row.dedike) || 0;
-                acc.ftl += Number(row.ftl) || 0;
-                acc.panelvan += Number(row.panelvan) || 0;
-                acc.hKamyon += Number(row.hKamyon) || 0;
-                acc.kamyonet += Number(row.kamyonet) || 0;
-                acc.minivan += Number(row.minivan) || 0;
-                acc.onteker += Number(row.onteker) || 0;
-                acc.tir += Number(row.tir) || 0;
-                return acc;
-            },
-            {
-                toplam: 0,
-                dedike: 0,
-                ftl: 0,
-                panelvan: 0,
-                hKamyon: 0,
-                kamyonet: 0,
-                minivan: 0,
-                onteker: 0,
-                tir: 0,
+    const handleSelect = useCallback((row, rowKey) => {
+        setSelectedRowKey((prevKey) => {
+            if (prevKey === rowKey) {
+                setSelectedRow(null);
+                return null;
             }
-        );
-    }, [summaryRows]);
 
-    const totalProfit = useMemo(
-        () => finansRows.reduce((sum, r) => sum + (r.kar || 0), 0),
-        [finansRows]
-    );
-
-    const totalSales = useMemo(
-        () => finansRows.reduce((sum, r) => sum + (r.satis || 0), 0),
-        [finansRows]
-    );
-
-    const totalCost = useMemo(
-        () => finansRows.reduce((sum, r) => sum + (r.maliyet || 0), 0),
-        [finansRows]
-    );
+            setSelectedRow(row);
+            return rowKey;
+        });
+    }, []);
 
     const handleImageUpload = useCallback((id, field, url) => {
         setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: url } : r)));
+        setSelectedRow((prev) => (prev?.id === id ? { ...prev, [field]: url } : prev));
     }, []);
 
     const handleNoteChange = useCallback(async (id, value) => {
         setRows((prev) => prev.map((r) => (r.id === id ? { ...r, note: value } : r)));
+        setSelectedRow((prev) => (prev?.id === id ? { ...prev, note: value } : prev));
 
-        const { error } = await supabase
-            .from("araclar")
-            .update({ note: value })
-            .eq("id", id);
-
-        if (error) {
-            console.error("Not güncellenemedi:", error);
-        }
+        await supabase.from("araclar").update({ note: value }).eq("id", id);
     }, []);
 
-    const exportSummaryExcel = () => {
-        exportExcel(
-            summaryRows.map((r) => ({
-                "Sıra": r.sira,
-                "Müşteri Adı": r.musteri,
-                "Araç Sayısı": r.aracSayisi,
-                "Dedike": r.dedike || "",
-                "FTL": r.ftl || "",
-                "Panelvan": r.panelvan || "",
-                "H.Kamyon": r.hKamyon || "",
-                "Kamyonet": r.kamyonet || "",
-                "Minivan": r.minivan || "",
-                "Onteker": r.onteker || "",
-                "Tır": r.tir || "",
-            })),
-            "Operasyon_Ozet",
-            "Ozet"
-        );
+    const handleSave = async (form) => {
+        const payload = {
+            musteri: form.musteri,
+            plaka: form.plaka,
+            arac_telefonu: form.aracTelefonu,
+            surucu: form.surucu,
+            cari_adi: form.cariAdi,
+            kurye: form.kurye,
+            bolge: form.bolge,
+            bolge_dagilim: form.bolgeDagilim,
+            arac_turu: form.aracTuru,
+            marka: form.marka,
+            model: form.model,
+            yil: form.yil ? Number(form.yil) : null,
+            giydirme: !!form.giydirme,
+            sozlesme_var: !!form.sozlesme,
+            senet_var: !!form.senet,
+            senet_tutari: form.senetTutari ? Number(String(form.senetTutari).replace(/\./g, "").replace(",", ".")) : 0,
+            arac_metre_kup: form.aracMetreKup,
+            yakit_orani: form.yakitOrani ? Number(form.yakitOrani) : 0,
+            baslangic_tarihi: form.baslangicTarihi || null,
+            satis: form.satis ? Number(form.satis) : 0,
+            maliyet: form.maliyet ? Number(form.maliyet) : 0,
+            note: form.note ?? "",
+            vehicle_image_url: form.vehicleImage ?? null,
+            license_image_url: form.licenseImage ?? null,
+        };
+
+        if (form.id) {
+            const { error: updateError } = await supabase.from("araclar").update(payload).eq("id", form.id);
+            if (updateError) {
+                console.error(updateError);
+                setError("Araç güncellenemedi.");
+                return;
+            }
+        } else {
+            const { error: insertError } = await supabase.from("araclar").insert([payload]);
+            if (insertError) {
+                console.error(insertError);
+                setError("Araç eklenemedi.");
+                return;
+            }
+        }
+
+        await load();
     };
 
-    const exportMissingDocsExcel = () => {
-        exportExcel(
-            eksikEvrakRows.map((r) => ({
-                "Sıra": r.sira,
-                "Müşteri": r.musteri,
-                "Plaka": r.plaka,
-                "Sürücü": r.surucu,
-                "Cari Adı": r.cariAdi,
+    const openAdd = () => {
+        setEditRow(null);
+        setDrawerOpen(true);
+    };
+
+    const openEdit = (row) => {
+        setEditRow(row);
+        setDrawerOpen(true);
+    };
+
+    const exportAll = () => {
+        exportXLSX(
+            rows.map((r) => ({
+                Sıra: r.sira,
+                Müşteri: r.musteri,
+                Plaka: r.plaka,
+                Sürücü: r.surucu,
+                Cari: r.cariAdi,
+                Kurye: r.kurye,
+                Bölge: r.bolge,
+                Dağılım: r.bolgeDagilim,
                 "Araç Türü": r.aracTuru,
-                "Sözleşme": r.sozlesme,
-                "Senet": r.senet,
-                "Senet Tutarı": r.senetTutari,
+                Marka: r.marka,
+                Model: r.model,
+                Yıl: r.yil,
+                Sözleşme: r.sozlesme,
+                Senet: r.senet,
+                Satış: r.satis,
+                Maliyet: r.maliyet,
+                Kâr: r.satis - r.maliyet,
             })),
-            "Eksik_Evrak_Listesi",
-            "Eksik Evrak"
+            "Arac_Listesi",
+            "Araçlar"
         );
     };
-
-    const exportFinanceExcel = () => {
-        exportExcel(
-            finansRows.map((r) => ({
-                "Sıra": r.sira,
-                "Müşteri": r.musteri,
-                "Plaka": r.plaka,
-                "Araç Türü": r.aracTuru,
-                "Yakıt Oranı": r.yakitOrani,
-                "Satış": r.satis,
-                "Maliyet": r.maliyet,
-                "Kar": r.kar,
-            })),
-            "Satis_Maliyet_Raporu",
-            "Finans"
-        );
-    };
-
-    const summaryColumns = [
-        { key: "sira", title: "Sıra" },
-        { key: "musteri", title: "Müşteri Adı" },
-        { key: "aracSayisi", title: "Araç Sayısı" },
-        { key: "dedike", title: "Dedike" },
-        { key: "ftl", title: "FTL" },
-        { key: "panelvan", title: "Panelvan" },
-        { key: "hKamyon", title: "H.Kamyon" },
-        { key: "kamyonet", title: "Kamyonet" },
-        { key: "minivan", title: "Minivan" },
-        { key: "onteker", title: "Onteker" },
-        { key: "tir", title: "Tır" },
-    ];
-
-    const missingDocsColumns = [
-        { key: "sira", title: "Sıra" },
-        { key: "musteri", title: "Müşteri" },
-        { key: "plaka", title: "Plaka" },
-        { key: "surucu", title: "Sürücü" },
-        { key: "cariAdi", title: "Cari Adı" },
-        { key: "aracTuru", title: "Araç Türü" },
-        {
-            key: "sozlesme",
-            title: "Sözleşme",
-            render: (value) => <Badge value={value} variant={value === "Var" ? "yes" : "no"} />,
-        },
-        {
-            key: "senet",
-            title: "Senet",
-            render: (value) => <Badge value={value} variant={value === "Var" ? "yes" : "no"} />,
-        },
-        { key: "senetTutari", title: "Senet Tutarı" },
-    ];
-
-    const financeColumns = [
-        { key: "sira", title: "Sıra" },
-        { key: "musteri", title: "Müşteri" },
-        { key: "plaka", title: "Plaka" },
-        { key: "aracTuru", title: "Araç Türü" },
-        { key: "yakitOrani", title: "Yakıt Oranı" },
-        {
-            key: "satis",
-            title: "Satış",
-            render: (value) => formatCurrency(value),
-        },
-        {
-            key: "maliyet",
-            title: "Maliyet",
-            render: (value) => formatCurrency(value),
-        },
-        {
-            key: "kar",
-            title: "Kar",
-            render: (value) => (
-                <span className={value >= 0 ? "text-profit" : "text-loss"}>
-                    {formatCurrency(value)}
-                </span>
-            ),
-        },
-    ];
 
     if (loading) {
         return (
-            <div className="po-page">
-                <div className="po-empty">Araç verileri yükleniyor...</div>
+            <div className="po-page po-page--loading">
+                <div className="po-loader">
+                    <div className="po-loader__ring" />
+                    <span>Yükleniyor...</span>
+                </div>
             </div>
         );
     }
 
     return (
         <div className="po-page">
-            <div className="hero-panel">
-                <div>
-                    <p className="po-suptitle">Yönetim Paneli</p>
-                    <h1 className="po-title">Operasyon, Evrak ve Finans Yönetimi</h1>
-                    <p className="po-desc">
-                        Tüm tablolar tek ekranda, modern görünümde, filtrelenebilir ve Excel çıktılı şekilde yönetilir.
-                    </p>
+            <header className="po-header">
+                <div className="po-header__left">
+                    <div className="po-header__title">Araç Operasyonu</div>
+                    <div className="po-header__sub">Araç yönetimi, evrak takibi ve finans raporu</div>
                 </div>
 
-                <div className="hero-actions">
-                    <button className="btn btn--ghost" onClick={exportSummaryExcel}>
-                        Özet Excel
-                    </button>
-                    <button className="btn btn--ghost" onClick={exportMissingDocsExcel}>
-                        Evrak Excel
-                    </button>
-                    <button className="btn btn--primary" onClick={exportFinanceExcel}>
-                        Finans Excel
-                    </button>
-                </div>
-            </div>
-
-            {error && <div className="po-empty">{error}</div>}
-
-            <div className="po-stats">
-                <StatCard label="Toplam Araç" value={summaryTotals.toplam} subtext="Özet veriden" accent />
-                <StatCard label="Dedike" value={summaryTotals.dedike} subtext="Aktif dedike araç" />
-                <StatCard label="FTL" value={summaryTotals.ftl} subtext="FTL toplamı" />
-                <StatCard label="Eksik Evrak" value={eksikEvrakRows.length} subtext="Sözleşme veya senet eksik" />
-                <StatCard label="Toplam Satış" value={formatCurrency(totalSales)} subtext="Finans verisi" />
-                <StatCard label="Toplam Maliyet" value={formatCurrency(totalCost)} subtext="Finans verisi" />
-                <StatCard label="Toplam Kar" value={formatCurrency(totalProfit)} subtext="Satış - maliyet" />
-                <StatCard label="Panelvan" value={summaryTotals.panelvan} subtext="Araç türü kırılımı" />
-            </div>
-
-            <div className="tabs">
-                <button
-                    className={`tabs__btn ${tab === "ozet" ? "tabs__btn--active" : ""}`}
-                    onClick={() => setTab("ozet")}
-                >
-                    Özet
-                </button>
-                <button
-                    className={`tabs__btn ${tab === "araclar" ? "tabs__btn--active" : ""}`}
-                    onClick={() => setTab("araclar")}
-                >
-                    Araç Kartları
-                </button>
-                <button
-                    className={`tabs__btn ${tab === "evrak" ? "tabs__btn--active" : ""}`}
-                    onClick={() => setTab("evrak")}
-                >
-                    Eksik Evrak
-                </button>
-                <button
-                    className={`tabs__btn ${tab === "finans" ? "tabs__btn--active" : ""}`}
-                    onClick={() => setTab("finans")}
-                >
-                    Satış & Maliyet
-                </button>
-            </div>
-
-            {tab === "ozet" && (
-                <>
-                    <SectionTitle
-                        title="Operasyon Özeti"
-                        desc="Araçlar tablosundan otomatik oluşturulan özet tablo"
-                        right={
-                            <button className="btn btn--ghost" onClick={exportSummaryExcel}>
-                                Excel Aktar
-                            </button>
-                        }
-                    />
-
-                    <div className="summary-mini-grid">
-                        <StatCard label="Panelvan" value={summaryTotals.panelvan} />
-                        <StatCard label="H.Kamyon" value={summaryTotals.hKamyon} />
-                        <StatCard label="Kamyonet" value={summaryTotals.kamyonet} />
-                        <StatCard label="Minivan" value={summaryTotals.minivan} />
-                        <StatCard label="Onteker" value={summaryTotals.onteker} />
-                        <StatCard label="Tır" value={summaryTotals.tir} />
-                    </div>
-
-                    <DataTable columns={summaryColumns} rows={summaryRows} emptyText="Özet veri bulunamadı." />
-                </>
-            )}
-
-            {tab === "araclar" && (
-                <>
-                    <SectionTitle
-                        title="Araç Yönetim Alanı"
-                        desc="Kart görünümü ve tablo görünümü arasında geçiş yapabilirsiniz."
-                        right={
-                            <div className="toolbar-right">
-                                <div className="view-toggle">
-                                    <button
-                                        className={`view-toggle__btn${view === "card" ? " view-toggle__btn--active" : ""}`}
-                                        onClick={() => setView("card")}
-                                        title="Kart görünümü"
-                                    >
-                                        ▦
-                                    </button>
-                                    <button
-                                        className={`view-toggle__btn${view === "list" ? " view-toggle__btn--active" : ""}`}
-                                        onClick={() => setView("list")}
-                                        title="Liste görünümü"
-                                    >
-                                        ☰
-                                    </button>
-                                </div>
-                            </div>
-                        }
-                    />
-
-                    <div className="po-toolbar">
-                        <div className="search-wrap">
-                            <svg className="search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <circle cx="11" cy="11" r="8" />
-                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                            </svg>
-                            <input
-                                type="text"
-                                placeholder="Plaka, sürücü, müşteri, bölge ara..."
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
+                <div className="po-header__right">
+                    <button className="hdr-btn hdr-btn--ghost" onClick={exportAll}>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path
+                                d="M7 1V9M7 9L4 6M7 9L10 6"
+                                stroke="currentColor"
+                                strokeWidth="1.4"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                             />
-                        </div>
+                            <path d="M2 11H12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                        </svg>
+                        Excel
+                    </button>
 
-                        <div className="segment">
-                            {["Tümü", "Avrupa", "Anadolu", "Bursa", "Trakya"].map((b) => (
-                                <button
-                                    key={b}
-                                    className={`segment__btn${bolge === b ? " segment__btn--active" : ""}`}
-                                    onClick={() => setBolge(b)}
-                                >
-                                    {b}
-                                </button>
-                            ))}
-                        </div>
+                    <button className="hdr-btn hdr-btn--primary" onClick={openAdd}>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path d="M7 2V12M2 7H12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                        </svg>
+                        Yeni Araç
+                    </button>
+                </div>
+            </header>
 
-                        <button
-                            className="btn btn--ghost"
-                            onClick={() =>
-                                exportExcel(
-                                    filteredVehicles.map((r) => ({
-                                        "Sıra": r.sira,
-                                        "Müşteri": r.musteri,
-                                        "Plaka": r.plaka,
-                                        "Sürücü": r.surucu,
-                                        "Cari Adı": r.cariAdi,
-                                        "Kurye": r.kurye,
-                                        "Bölge": r.bolge,
-                                        "Bölge Dağılım": r.bolgeDagilim,
-                                        "Araç Türü": r.aracTuru,
-                                        "Marka": r.marka,
-                                        "Model": r.model,
-                                        "Yıl": r.yil,
-                                        "Sözleşme": r.sozlesme,
-                                        "Senet": r.senet,
-                                        "Satış": r.satis,
-                                        "Maliyet": r.maliyet,
-                                    })),
-                                    "Arac_Yonetim_Listesi",
-                                    "Araçlar"
-                                )
-                            }
-                        >
-                            Filtreli Excel
-                        </button>
-                    </div>
+            {error && <div className="po-error">{error}</div>}
 
-                    {search || bolge !== "Tümü" ? (
-                        <p className="po-result-count">{filteredVehicles.length} kayıt bulundu</p>
-                    ) : null}
+            <StatsStrip rows={rows} eksik={eksikEvrakRows.length} />
 
-                    {filteredVehicles.length === 0 ? (
-                        <div className="po-empty">Arama kriterine uygun kayıt bulunamadı.</div>
-                    ) : view === "card" ? (
-                        <div className="card-grid">
-                            {filteredVehicles.map((row) => (
-                                <VehicleCard
-                                    key={row.id}
-                                    row={row}
-                                    onDetail={setModal}
-                                    onImageUpload={handleImageUpload}
-                                    onNoteChange={handleNoteChange}
+            <div className="po-tabs">
+                {[
+                    ["araclar", "Araçlar"],
+                    ["ozet", "Operasyon Özeti"],
+                    ["evrak", "Eksik Evrak"],
+                    ["finans", "Finans"],
+                ].map(([k, l]) => (
+                    <button
+                        key={k}
+                        className={`po-tab ${tab === k ? "po-tab--active" : ""}`}
+                        onClick={() => {
+                            setTab(k);
+                            setSelectedRow(null);
+                            setSelectedRowKey(null);
+                        }}
+                    >
+                        {l}
+                        {k === "evrak" && eksikEvrakRows.length > 0 && (
+                            <span className="po-tab__badge">{eksikEvrakRows.length}</span>
+                        )}
+                    </button>
+                ))}
+            </div>
+
+            <div className={`po-content ${selectedRow ? "po-content--split" : ""}`}>
+                <div className="po-main">
+                    {tab === "araclar" && (
+                        <div className="po-toolbar">
+                            <div className="po-search">
+                                <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                                    <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.3" />
+                                    <path d="M10 10L13 13" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                                </svg>
+
+                                <input
+                                    placeholder="Plaka, sürücü, müşteri..."
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
                                 />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="list-view">
-                            {filteredVehicles.map((row) => (
-                                <ListRow key={row.id} row={row} onDetail={setModal} />
-                            ))}
+                            </div>
+
+                            <div className="po-segment">
+                                {BOLGE_LIST.map((b) => (
+                                    <button
+                                        key={b}
+                                        className={`po-seg-btn ${bolge === b ? "po-seg-btn--active" : ""}`}
+                                        onClick={() => setBolge(b)}
+                                    >
+                                        {b}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <span className="po-count">{filtered.length} araç</span>
                         </div>
                     )}
-                </>
-            )}
 
-            {tab === "evrak" && (
-                <>
-                    <SectionTitle
-                        title="Sözleşme / Senet Mevcut Olmayanlar"
-                        desc="Araçlar tablosundan filtrelenen eksik evrak listesi"
-                        right={
-                            <button className="btn btn--ghost" onClick={exportMissingDocsExcel}>
-                                Excel Aktar
-                            </button>
-                        }
+                    {tab === "araclar" && (
+                        <VehicleTable rows={filtered} selectedKey={selectedRowKey} onSelect={handleSelect} />
+                    )}
+
+                    {tab === "ozet" && <SummaryTab summaryRows={summaryRows} />}
+
+                    {tab === "evrak" && (
+                        <EvrakTab rows={eksikEvrakRows} selectedKey={selectedRowKey} onSelect={handleSelect} />
+                    )}
+
+                    {tab === "finans" && (
+                        <FinansTab rows={rows} selectedKey={selectedRowKey} onSelect={handleSelect} />
+                    )}
+                </div>
+
+                {selectedRow && tab !== "ozet" && (
+                    <DetailPanel
+                        row={selectedRow}
+                        onClose={() => {
+                            setSelectedRow(null);
+                            setSelectedRowKey(null);
+                        }}
+                        onEdit={openEdit}
+                        onImageUpload={handleImageUpload}
+                        onNoteChange={handleNoteChange}
                     />
+                )}
+            </div>
 
-                    <DataTable
-                        columns={missingDocsColumns}
-                        rows={eksikEvrakRows}
-                        emptyText="Eksik evrak kaydı bulunamadı."
-                    />
-                </>
-            )}
-
-            {tab === "finans" && (
-                <>
-                    <SectionTitle
-                        title="Satış & Maliyet Raporu"
-                        desc="Araçlar tablosundan üretilen finans tablosu"
-                        right={
-                            <button className="btn btn--ghost" onClick={exportFinanceExcel}>
-                                Excel Aktar
-                            </button>
-                        }
-                    />
-
-                    <div className="finance-summary">
-                        <div className="finance-summary__item">
-                            <span>Toplam Satış</span>
-                            <strong>{formatCurrency(totalSales)}</strong>
-                        </div>
-                        <div className="finance-summary__item">
-                            <span>Toplam Maliyet</span>
-                            <strong>{formatCurrency(totalCost)}</strong>
-                        </div>
-                        <div className="finance-summary__item finance-summary__item--profit">
-                            <span>Toplam Kar</span>
-                            <strong>{formatCurrency(totalProfit)}</strong>
-                        </div>
-                    </div>
-
-                    <DataTable columns={financeColumns} rows={finansRows} />
-                </>
-            )}
-
-            <DetailModal row={modal} onClose={() => setModal(null)} />
+            <Drawer
+                open={drawerOpen}
+                row={editRow}
+                onClose={() => setDrawerOpen(false)}
+                onSave={handleSave}
+            />
         </div>
     );
 }

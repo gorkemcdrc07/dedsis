@@ -6,9 +6,9 @@ const app = express();
 
 const allowedOrigins = [
     "http://localhost:3000",
+    "http://localhost:3001", // 👈 EKLE
     "https://dedsis.vercel.app",
 ];
-
 const corsOptions = {
     origin: function (origin, callback) {
         console.log("Origin:", origin);

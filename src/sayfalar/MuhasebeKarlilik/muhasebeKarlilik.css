@@ -267,59 +267,9 @@ html, body {
         color: var(--text2);
     }
 
-/* Target Type Tabs */
-.mk-target-tabs {
-    display: flex;
-    gap: 6px;
-    padding: 16px 20px;
-}
-
-.mk-target-tab {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 16px 12px;
-    border-radius: var(--r2);
-    border: 1.5px solid var(--border);
-    background: var(--surface2);
-    cursor: pointer;
-    transition: all 0.18s ease;
-    font-family: inherit;
-    color: var(--text2);
-}
-
-    .mk-target-tab:hover {
-        border-color: var(--border2);
-        color: var(--text);
-    }
-
-    .mk-target-tab.active {
-        border-color: var(--accent);
-        background: var(--accent-soft);
-        color: var(--accent2);
-        box-shadow: 0 0 0 3px var(--accent-glow);
-    }
-
-.mk-target-tab-icon {
-    font-size: 24px;
-}
-
-.mk-target-tab-label {
-    font-size: 13px;
-    font-weight: 700;
-}
-
-.mk-target-tab-sub {
-    font-size: 11px;
-    opacity: 0.7;
-    text-align: center;
-}
-
 /* Month + Selector row */
 .mk-dist-config {
-    padding: 0 20px 16px;
+    padding: 16px 20px;
     display: grid;
     grid-template-columns: 160px 1fr;
     gap: 14px;
@@ -387,6 +337,10 @@ html, body {
     transition: all 0.18s ease;
     cursor: pointer;
 }
+
+    .mk-target-item:hover {
+        border-color: var(--border2);
+    }
 
     .mk-target-item.selected {
         border-color: var(--accent);

@@ -3,15 +3,16 @@ export function fmt(value, short = false) {
 
     if (short) {
         return n.toLocaleString("tr-TR", {
-            maximumFractionDigits: 0, // 🔥 sade
+            maximumFractionDigits: 0,
         }) + " ₺";
     }
     return n.toLocaleString("tr-TR", {
         style: "currency",
         currency: "TRY",
-        maximumFractionDigits: 0, // 🔥 sade
+        maximumFractionDigits: 0,
     });
 }
+
 export function parseNumber(value) {
     if (value === null || value === undefined || value === "") return 0;
     if (typeof value === "number") return Number.isFinite(value) ? value : 0;
@@ -29,7 +30,17 @@ export function parseNumber(value) {
 }
 
 export function norm(value) {
-    return String(value || "").trim().toLocaleLowerCase("tr-TR");
+    return String(value || "")
+        .toLocaleLowerCase("tr-TR")
+        .replace(/ı/g, "i")
+        .replace(/ş/g, "s")
+        .replace(/ğ/g, "g")
+        .replace(/ü/g, "u")
+        .replace(/ö/g, "o")
+        .replace(/ç/g, "c")
+        .replace(/[_\s]+/g, "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
 }
 
 export function monthLabel(start, end) {
