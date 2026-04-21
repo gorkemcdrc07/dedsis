@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "../../lib/supabase";
 import "./YonetimPaneli.css";
 
@@ -42,11 +42,11 @@ export default function YonetimPaneliSayfasi() {
     const [hata, setHata] = useState("");
     const [bilgi, setBilgi] = useState("");
 
-    const yetkiAnahtari = (ekranKod, ogeKod = null, alanKod = null) => {
+    const yetkiAnahtari = useCallback((ekranKod, ogeKod = null, alanKod = null) => {
         if (alanKod) return `${ekranKod}__${ogeKod}__${alanKod}`;
         if (ogeKod) return `${ekranKod}__${ogeKod}`;
         return ekranKod;
-    };
+    }, []);
 
     const ekranOgeleriMap = useMemo(() => {
         const map = {};
@@ -88,7 +88,7 @@ export default function YonetimPaneliSayfasi() {
         [kullanicilar]
     );
 
-    const seciliKullaniciYetkileriniGetir = async (kullaniciId) => {
+    const seciliKullaniciYetkileriniGetir = useCallback(async (kullaniciId) => {
         if (!kullaniciId) {
             setYetkiler({});
             return;
@@ -132,7 +132,7 @@ export default function YonetimPaneliSayfasi() {
         });
 
         setYetkiler(yeni);
-    };
+    }, [yetkiAnahtari]);
 
     const referansTablolariHazirla = async () => {
         const { data: ekD, error: ekE } = await supabase
@@ -225,13 +225,23 @@ export default function YonetimPaneliSayfasi() {
         } else {
             setYetkiler({});
         }
-    }, [seciliKullanici]);
+    }, [seciliKullanici, seciliKullaniciYetkileriniGetir]);
 
-    const ekranYetkisiVarMi = (ekranKod) => !!yetkiler[yetkiAnahtari(ekranKod)];
-    const ogeYetkisiVarMi = (ekranKod, ogeKod) =>
-        !!yetkiler[yetkiAnahtari(ekranKod, ogeKod)];
-    const alanYetkisiVarMi = (ekranKod, ogeKod, alanKod) =>
-        !!yetkiler[yetkiAnahtari(ekranKod, ogeKod, alanKod)];
+    const ekranYetkisiVarMi = useCallback(
+        (ekranKod) => !!yetkiler[yetkiAnahtari(ekranKod)],
+        [yetkiler, yetkiAnahtari]
+    );
+
+    const ogeYetkisiVarMi = useCallback(
+        (ekranKod, ogeKod) => !!yetkiler[yetkiAnahtari(ekranKod, ogeKod)],
+        [yetkiler, yetkiAnahtari]
+    );
+
+    const alanYetkisiVarMi = useCallback(
+        (ekranKod, ogeKod, alanKod) =>
+            !!yetkiler[yetkiAnahtari(ekranKod, ogeKod, alanKod)],
+        [yetkiler, yetkiAnahtari]
+    );
 
     const ebeveynleriDengele = (state, ekranKod, ogeKod = null) => {
         const next = { ...state };
@@ -467,7 +477,15 @@ export default function YonetimPaneliSayfasi() {
                 aktifAlan,
             };
         });
-    }, [ekranlar, ekranOgeleriMap, ogeAlanlariMap, yetkiler, ekranOgeleri]);
+    }, [
+        ekranlar,
+        ekranOgeleriMap,
+        ogeAlanlariMap,
+        ekranOgeleri,
+        ekranYetkisiVarMi,
+        ogeYetkisiVarMi,
+        alanYetkisiVarMi,
+    ]);
 
     return (
         <div className="yp-sayfa">
