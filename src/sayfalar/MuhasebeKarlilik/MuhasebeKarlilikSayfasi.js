@@ -184,12 +184,11 @@ export default function MuhasebeKarlilikSayfasi() {
     const loadProjects = async () => {
         const { data } = await supabase
             .from("projeler")
-            .select("id, reel_proje_adi")
+            .select("id, proje_adi, reel_proje_adi")
             .order("reel_proje_adi");
 
         setProjects(data || []);
     };
-
     /* ─── Modal ─── */
     const showModal = useCallback((type, title, message) => {
         setModal({ open: true, type, title, message });
@@ -197,13 +196,22 @@ export default function MuhasebeKarlilikSayfasi() {
 
     /* ─── Target list (sadece projeler) ─── */
     const targetList = useMemo(() => {
-        return projects.map((p) => ({
+        const seen = new Set();
+
+        return projects.filter((p) => {
+            const key = p.reel_proje_adi?.trim();
+
+            if (!key || seen.has(key)) {
+                return false; // daha önce gösterildi → gösterme
+            }
+
+            seen.add(key);
+            return true;
+        }).map((p) => ({
             id: p.id,
             label: p.reel_proje_adi,
         }));
-    }, [projects]);
-
-    /* ─── Tümünü seç ─── */
+    }, [projects]);    /* ─── Tümünü seç ─── */
     const handleSelectAllTargets = () => {
         const allIds = targetList.map((item) => item.id);
         setSelectedIds(allIds);
