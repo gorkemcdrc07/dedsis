@@ -1,65 +1,371 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import "./ProjeTablosu.css";
 import { fmt, norm } from "./helpers";
 import PlateDetailModal from "./PlakaDetayPenceresi";
+import { supabase } from "../../lib/supabase";
 
 const IK_KEYWORDS = ["ik", "personel", "maaş", "sgk", "işçi", "çalışan", "prim"];
 const MUH_KEYWORDS = ["muhasebe", "vergi", "kdv", "stopaj", "mali", "denetim", "fatura"];
+
+async function apiRequest(url, options = {}) {
+    const response = await fetch(url, {
+        headers: {
+            "Content-Type": "application/json",
+            ...(options.headers || {}),
+        },
+        ...options,
+    });
+
+    if (!response.ok) {
+        let message = "İşlem başarısız.";
+        try {
+            const data = await response.json();
+            message = data?.message || message;
+        } catch {
+            // ignore
+        }
+        throw new Error(message);
+    }
+
+    try {
+        return await response.json();
+    } catch {
+        return null;
+    }
+}
+
+function getSourceConfig(item) {
+    const kaynak = String(item?.kaynak_tablo || "").toLowerCase().trim();
+
+    if (kaynak === "ik") {
+        return {
+            tableName: "ik",
+            idColumn: "id",
+            fields: {
+                hesap_adi: "hesap_adi",
+                tutar: "tutar",
+                proje_id: "proje_id",
+            },
+        };
+    }
+
+    if (kaynak === "muhasebe") {
+        return {
+            tableName: "muhasebe",
+            idColumn: "id",
+            fields: {
+                hesap_adi: "hesap_adi",
+                tutar: "tutar",
+                proje_id: "proje_id",
+            },
+        };
+    }
+
+    return null;
+}
+
+function safeLower(value) {
+    return String(value || "").trim().toLocaleLowerCase("tr-TR");
+}
+
+function normalizeProjects(allProjects = []) {
+    const seen = new Set();
+
+    return allProjects
+        .map((p, index) => {
+            const name = String(
+                p.projectName ?? p.name ?? p.reel_proje_adi ?? p.proje_adi ?? ""
+            ).trim();
+
+            const id = p.id ?? p.projectId ?? p.proje_id ?? null;
+
+            return {
+                id,
+                name,
+                key:
+                    id != null
+                        ? `project-${id}`
+                        : `project-name-${name || "bos"}-${index}`,
+            };
+        })
+        .filter((p) => {
+            if (!p.name) return false;
+
+            const dedupeKey =
+                p.id != null ? `id:${p.id}` : `name:${safeLower(p.name)}`;
+
+            if (seen.has(dedupeKey)) return false;
+            seen.add(dedupeKey);
+            return true;
+        })
+        .sort((a, b) => a.name.localeCompare(b.name, "tr"));
+}
+
+function DagilimModal({
+    open,
+    mode,
+    item,
+    allProjects = [],
+    loading,
+    error,
+    onClose,
+    onSubmitEdit,
+    onSubmitMove,
+    onSubmitDelete,
+}) {
+    const [hesapAdi, setHesapAdi] = useState("");
+    const [tutar, setTutar] = useState("");
+    const [targetProjectValue, setTargetProjectValue] = useState("");
+
+    const normalizedProjects = useMemo(
+        () => normalizeProjects(allProjects),
+        [allProjects]
+    );
+
+    useEffect(() => {
+        if (!item || !open) return;
+
+        setHesapAdi(item.hesap_adi || "");
+        setTutar(String(item.tutar ?? "").replace(".", ","));
+        setTargetProjectValue(item.proje_adi ? String(item.proje_adi) : "");
+    }, [item, open]);
+
+    if (!open || !item || !mode) return null;
+
+    const titleMap = {
+        edit: "Dağılım Kaydını Düzenle",
+        move: "Kaydı Farklı Projeye Ata",
+        delete: "Kaydı Sil",
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+
+        if (mode === "edit") {
+            const parsedTutar = Number(
+                String(tutar).replace(/\./g, "").replace(",", ".").trim()
+            );
+
+            if (Number.isNaN(parsedTutar)) return;
+
+            onSubmitEdit?.({
+                hesap_adi: hesapAdi.trim(),
+                tutar: parsedTutar,
+            });
+            return;
+        }
+
+        if (mode === "move") {
+            const selectedProjectName = String(targetProjectValue || "").trim();
+
+            if (!selectedProjectName) return;
+
+            onSubmitMove?.({
+                targetProjectName: selectedProjectName,
+            });
+            return;
+        }
+
+        if (mode === "delete") {
+            onSubmitDelete?.();
+        }
+    };
+
+    return (
+        <div className="pt-modal-backdrop" onClick={onClose}>
+            <div className="pt-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="pt-modal-head">
+                    <div>
+                        <div className="pt-modal-title">{titleMap[mode]}</div>
+                        <div className="pt-modal-subtitle">
+                            {item.hesap_adi}
+                            {item.kullanici_adi ? ` • ${item.kullanici_adi}` : ""}
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        className="pt-modal-close"
+                        onClick={onClose}
+                        disabled={loading}
+                    >
+                        ×
+                    </button>
+                </div>
+
+                <form className="pt-modal-body" onSubmit={handleSubmit}>
+                    {mode === "edit" && (
+                        <div className="pt-form-grid">
+                            <label className="pt-form-field">
+                                <span>Hesap Adı</span>
+                                <input
+                                    className="pt-control pt-input"
+                                    value={hesapAdi}
+                                    onChange={(e) => setHesapAdi(e.target.value)}
+                                    disabled={loading}
+                                />
+                            </label>
+
+                            <label className="pt-form-field">
+                                <span>Tutar</span>
+                                <input
+                                    className="pt-control pt-input"
+                                    value={tutar}
+                                    onChange={(e) => setTutar(e.target.value)}
+                                    disabled={loading}
+                                />
+                            </label>
+                        </div>
+                    )}
+
+                    {mode === "move" && (
+                        <label className="pt-form-field">
+                            <span>Hedef Proje</span>
+                            <select
+                                className="pt-control pt-select"
+                                value={targetProjectValue}
+                                onChange={(e) => setTargetProjectValue(e.target.value)}
+                                disabled={loading}
+                            >
+                                <option value="">Proje seçin</option>
+                                {normalizedProjects.map((p) => (
+                                    <option key={p.key} value={p.name}>
+                                        {p.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                    )}
+
+                    {mode === "delete" && (
+                        <div className="pt-delete-box">
+                            <div className="pt-delete-title">Bu kayıt silinecek.</div>
+                            <div className="pt-delete-text">
+                                Bu işlem geri alınamaz. Eminsen devam et.
+                            </div>
+                        </div>
+                    )}
+
+                    {error ? <div className="pt-form-error">{error}</div> : null}
+
+                    <div className="pt-modal-actions">
+                        <button
+                            type="button"
+                            className="pt-secondary-btn"
+                            onClick={onClose}
+                            disabled={loading}
+                        >
+                            Vazgeç
+                        </button>
+
+                        {mode === "edit" && (
+                            <button
+                                type="submit"
+                                className="pt-primary-btn"
+                                disabled={loading}
+                            >
+                                {loading ? "Kaydediliyor..." : "Kaydet"}
+                            </button>
+                        )}
+
+                        {mode === "move" && (
+                            <button
+                                type="submit"
+                                className="pt-primary-btn"
+                                disabled={loading || !String(targetProjectValue).trim()}
+                            >
+                                {loading ? "Taşınıyor..." : "Projeye Ata"}
+                            </button>
+                        )}
+
+                        {mode === "delete" && (
+                            <button
+                                type="submit"
+                                className="pt-danger-btn"
+                                disabled={loading}
+                            >
+                                {loading ? "Siliniyor..." : "Sil"}
+                            </button>
+                        )}
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
 
 function ServiceBreakdown({
     details,
     onPlateClick,
     projeDagilimRows = [],
     selectedMonth,
+    allProjects = [],
+    onUpdateDagilimRow,
+    onMoveDagilimRow,
+    onDeleteDagilimRow,
 }) {
     const [svcF, setSvcF] = useState("");
     const [plateSearch, setPlateSearch] = useState("");
     const [openCats, setOpenCats] = useState({});
+    const [busyRowId, setBusyRowId] = useState(null);
+    const [openMenuRowId, setOpenMenuRowId] = useState(null);
+    const [modalMode, setModalMode] = useState(null);
+    const [activeItem, setActiveItem] = useState(null);
+    const [modalError, setModalError] = useState("");
+
+    const menuRef = useRef(null);
 
     const toggleCat = (key) =>
         setOpenCats((prev) => ({ ...prev, [key]: !prev[key] }));
 
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (menuRef.current && !menuRef.current.contains(event.target)) {
+                setOpenMenuRowId(null);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
     const filteredDetails = useMemo(() => details || [], [details]);
+    const normalizedProjects = useMemo(
+        () => normalizeProjects(allProjects),
+        [allProjects]
+    );
 
     const monthlyDagilim = useMemo(() => {
-        const filtered = (projeDagilimRows || []).filter(
-            (row) =>
-                !selectedMonth ||
-                Number(row.donem_ay || 0) === Number(selectedMonth)
-        );
-
-        const grouped = new Map();
-
-        filtered.forEach((row) => {
-            const hesapAdi = row.hesap_adi || "-";
-            const altKalem = row.alt_kalem || "-";
-            const kullaniciAdi = row.kullanici_adi || "-";
-            const kaynakTablo = String(row.kaynak_tablo || "").toLowerCase().trim();
-
-            const key =
-                `${hesapAdi}__${altKalem}__${kullaniciAdi}__${kaynakTablo}`.toLocaleLowerCase("tr-TR");
-
-            if (!grouped.has(key)) {
-                grouped.set(key, {
-                    id: row.kayit_id || key,
-                    kullanici_adi: kullaniciAdi,
-                    hesap_adi: hesapAdi,
-                    alt_kalem: altKalem,
-                    tutar: 0,
-                    donem_ay: row.donem_ay || "",
-                    dagilim_orani: Number(row.dagilim_orani || 0),
-                    kaynak_tablo: kaynakTablo,
-                });
-            }
-
-            const current = grouped.get(key);
-            current.tutar += Number(row.tutar || 0);
-            current.dagilim_orani = Number(row.dagilim_orani || 0);
-        });
-
-        return [...grouped.values()].sort((a, b) => b.tutar - a.tutar);
+        return (projeDagilimRows || [])
+            .filter(
+                (row) =>
+                    !selectedMonth ||
+                    Number(row.donem_ay || 0) === Number(selectedMonth)
+            )
+            .map((row, index) => ({
+                id:
+                    row.kayit_id ||
+                    row.id ||
+                    `${row.proje_adi || ""}-${row.hesap_adi || ""}-${index}`,
+                kayit_id:
+                    row.kayit_id ||
+                    row.id ||
+                    `${row.proje_adi || ""}-${row.hesap_adi || ""}-${index}`,
+                source_id: row.id || row.source_id || row.kayit_id,
+                proje_id: row.proje_id || null,
+                proje_adi: String(row.reel_proje_adi || row.proje_adi || "").trim(),
+                reel_proje_adi: String(row.reel_proje_adi || row.proje_adi || "").trim(),
+                kullanici_adi: String(row.kullanici_adi || "-").trim(),
+                hesap_adi: String(row.hesap_adi || "-").trim(),
+                alt_kalem: String(row.alt_kalem || "-").trim(),
+                tutar: Number(row.tutar || 0),
+                donem_ay: row.donem_ay || "",
+                dagilim_orani: Number(row.dagilim_orani || 0),
+                kaynak_tablo: String(row.kaynak_tablo || "").toLowerCase().trim(),
+            }))
+            .sort((a, b) => b.tutar - a.tutar);
     }, [projeDagilimRows, selectedMonth]);
 
     const categorize = React.useCallback((item) => {
@@ -125,7 +431,7 @@ function ServiceBreakdown({
             g.s += Number(d.SalesInvoceIncome || 0);
         });
 
-        return [...map.values()].sort((a, b) => (b.p + b.s) - (a.p + a.s));
+        return [...map.values()].sort((a, b) => b.p + b.s - (a.p + a.s));
     }, [filtered]);
 
     const byPlate = useMemo(() => {
@@ -139,163 +445,419 @@ function ServiceBreakdown({
         return [...unique].sort((a, b) => a.localeCompare(b, "tr"));
     }, [filtered, plateSearch]);
 
+    const openModal = (mode, item) => {
+        setModalError("");
+        setOpenMenuRowId(null);
+        setActiveItem(item);
+        setModalMode(mode);
+    };
+
+    const closeModal = () => {
+        if (busyRowId) return;
+        setModalError("");
+        setActiveItem(null);
+        setModalMode(null);
+    };
+
+    const submitEdit = async (payload) => {
+        if (!activeItem) return;
+
+        try {
+            setBusyRowId(activeItem.kayit_id);
+            setModalError("");
+
+            const config = getSourceConfig(activeItem);
+            if (!config) {
+                throw new Error("Kayıt kaynağı bulunamadı.");
+            }
+
+            const recordId = activeItem.source_id || activeItem.kayit_id;
+            if (!recordId) {
+                throw new Error("Kayıt id bulunamadı.");
+            }
+
+            const updatePayload = {
+                [config.fields.hesap_adi]: payload.hesap_adi,
+                [config.fields.tutar]: payload.tutar,
+            };
+
+            const { error } = await supabase
+                .from(config.tableName)
+                .update(updatePayload)
+                .eq(config.idColumn, recordId);
+
+            if (error) throw error;
+
+            onUpdateDagilimRow?.(activeItem.kayit_id, payload);
+            closeModal();
+        } catch (error) {
+            console.error("submitEdit error", error);
+            setModalError(error.message || "Kayıt güncellenemedi.");
+        } finally {
+            setBusyRowId(null);
+        }
+    };
+
+    const submitMove = async ({ targetProjectName }) => {
+        if (!activeItem) return;
+
+        try {
+            setBusyRowId(activeItem.kayit_id);
+            setModalError("");
+
+            const config = getSourceConfig(activeItem);
+            if (!config) {
+                throw new Error("Kayıt kaynağı bulunamadı.");
+            }
+
+            const recordId = activeItem.source_id || activeItem.kayit_id;
+            if (!recordId) {
+                throw new Error("Kayıt id bulunamadı.");
+            }
+
+            const selectedProjectName = String(targetProjectName || "").trim();
+            if (!selectedProjectName) {
+                throw new Error("Lütfen proje seçin.");
+            }
+
+            const localProject = normalizedProjects.find(
+                (p) => safeLower(p.name) === safeLower(selectedProjectName)
+            );
+
+            const { data: projectRows, error: projectFindError } = await supabase
+                .from("projeler")
+                .select("id, proje_adi, reel_proje_adi");
+
+            if (projectFindError) throw projectFindError;
+
+            const projectRow =
+                (projectRows || []).find(
+                    (p) =>
+                        safeLower(p.reel_proje_adi) === safeLower(selectedProjectName) ||
+                        safeLower(p.proje_adi) === safeLower(selectedProjectName)
+                ) || null;
+
+            if (!projectRow?.id) {
+                throw new Error("Seçilen proje bulunamadı.");
+            }
+
+            const finalProjectId = Number(projectRow.id);
+            const finalProjectName =
+                String(projectRow.reel_proje_adi || projectRow.proje_adi || localProject?.name || "").trim();
+
+            const { error } = await supabase
+                .from(config.tableName)
+                .update({
+                    [config.fields.proje_id]: finalProjectId,
+                })
+                .eq(config.idColumn, recordId)
+                .select();
+
+            if (error) throw error;
+
+            onMoveDagilimRow?.(
+                activeItem.kayit_id,
+                finalProjectName,
+                finalProjectId
+            );
+
+            closeModal();
+        } catch (error) {
+            console.error("submitMove error", error);
+            setModalError(error.message || "Kayıt farklı projeye taşınamadı.");
+        } finally {
+            setBusyRowId(null);
+        }
+    };
+
+    const submitDelete = async () => {
+        if (!activeItem) return;
+
+        try {
+            setBusyRowId(activeItem.kayit_id);
+            setModalError("");
+
+            const config = getSourceConfig(activeItem);
+            if (!config) {
+                throw new Error("Kayıt kaynağı bulunamadı.");
+            }
+
+            const recordId = activeItem.source_id || activeItem.kayit_id;
+            if (!recordId) {
+                throw new Error("Kayıt id bulunamadı.");
+            }
+
+            const { error } = await supabase
+                .from(config.tableName)
+                .delete()
+                .eq(config.idColumn, recordId);
+
+            if (error) throw error;
+
+            onDeleteDagilimRow?.(activeItem.kayit_id);
+            closeModal();
+        } catch (error) {
+            console.error("submitDelete error", error);
+            setModalError(error.message || "Kayıt silinemedi.");
+        } finally {
+            setBusyRowId(null);
+        }
+    };
+
     return (
-        <div className="pt-detail-shell">
-            <div className="pt-detail-toolbar">
-                <select
-                    className="pt-control pt-select"
-                    value={svcF}
-                    onChange={(e) => setSvcF(e.target.value)}
-                >
-                    <option value="">Tüm hizmetler</option>
-                    {svcOpts.map((o) => (
-                        <option key={o} value={o}>
-                            {o}
-                        </option>
-                    ))}
-                </select>
+        <>
+            <div className="pt-detail-shell">
+                <div className="pt-detail-toolbar">
+                    <select
+                        className="pt-control pt-select"
+                        value={svcF}
+                        onChange={(e) => setSvcF(e.target.value)}
+                    >
+                        <option value="">Tüm hizmetler</option>
+                        {svcOpts.map((o) => (
+                            <option key={o} value={o}>
+                                {o}
+                            </option>
+                        ))}
+                    </select>
 
-                <input
-                    className="pt-control pt-input"
-                    placeholder="Plaka filtrele..."
-                    value={plateSearch}
-                    onChange={(e) => setPlateSearch(e.target.value)}
-                />
-            </div>
+                    <input
+                        className="pt-control pt-input"
+                        placeholder="Plaka filtrele..."
+                        value={plateSearch}
+                        onChange={(e) => setPlateSearch(e.target.value)}
+                    />
+                </div>
 
-            <div className="pt-detail-grid">
-                <section className="pt-panel pt-panel-services">
-                    <div className="pt-panel-title">Hizmet / Masraf ({bySvc.length})</div>
+                <div className="pt-detail-grid">
+                    <section className="pt-panel pt-panel-services">
+                        <div className="pt-panel-title">Hizmet / Masraf ({bySvc.length})</div>
 
-                    {bySvc.length === 0 ? (
-                        <div className="pt-empty">Veri yok</div>
-                    ) : (
-                        <div className="pt-scroll pt-service-scroll pt-service-list">
-                            {bySvc.map((s) => {
-                                const showSales = Number(s.s) !== 0;
-                                const showPurchase = Number(s.p) !== 0;
+                        {bySvc.length === 0 ? (
+                            <div className="pt-empty">Veri yok</div>
+                        ) : (
+                            <div className="pt-scroll pt-service-scroll pt-service-list">
+                                {bySvc.map((s) => {
+                                    const showSales = Number(s.s) !== 0;
+                                    const showPurchase = Number(s.p) !== 0;
 
-                                return (
-                                    <div className="pt-service-row" key={s.name}>
-                                        <div className="pt-service-main">
-                                            <div className="pt-service-name">{s.name}</div>
-                                        </div>
-
-                                        <div className="pt-service-metrics">
-                                            {showSales && (
-                                                <div className="pt-metric-box">
-                                                    <span>Satış</span>
-                                                    <strong>{fmt(s.s, true)}</strong>
-                                                </div>
-                                            )}
-
-                                            {showPurchase && (
-                                                <div className="pt-metric-box">
-                                                    <span>Alış</span>
-                                                    <strong>{fmt(s.p, true)}</strong>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </section>
-
-                <section className="pt-panel pt-panel-costs">
-                    <div className="pt-panel-title">
-                        Genel Dağılım Maliyetleri ({monthlyDagilim.length})
-                    </div>
-
-                    {monthlyDagilim.length === 0 ? (
-                        <div className="pt-empty">Dağılım verisi yok</div>
-                    ) : (
-                        <div className="pt-scroll pt-cost-scroll">
-                            {CAT_CONFIG.map(({ key, label, color }) => {
-                                const items = categorized[key];
-                                if (items.length === 0) return null;
-
-                                const total = items.reduce((sum, item) => sum + item.tutar, 0);
-                                const isOpen = !!openCats[key];
-
-                                return (
-                                    <div key={key}>
-                                        <div
-                                            className={`pt-cat-header${isOpen ? " open" : ""}`}
-                                            onClick={() => toggleCat(key)}
-                                        >
-                                            <div className="pt-cat-left">
-                                                <span
-                                                    className="pt-cat-dot"
-                                                    style={{ background: color }}
-                                                />
-                                                <span className="pt-cat-name">{label}</span>
-                                                <span className="pt-cat-count">{items.length} kalem</span>
+                                    return (
+                                        <div className="pt-service-row" key={s.name}>
+                                            <div className="pt-service-main">
+                                                <div className="pt-service-name">{s.name}</div>
                                             </div>
 
-                                            <div className="pt-cat-right">
-                                                <span className="pt-cat-total">{fmt(total, true)}</span>
-                                                <span className="pt-cat-chevron">{isOpen ? "▲" : "▼"}</span>
-                                            </div>
-                                        </div>
-
-                                        {isOpen && (
-                                            <div className="pt-cat-body">
-                                                {items.map((item) => (
-                                                    <div
-                                                        className="pt-cat-item"
-                                                        key={item.id || `${item.hesap_adi}-${item.alt_kalem}`}
-                                                    >
-                                                        <div className="pt-cat-item-main">
-                                                            <div className="pt-cat-item-title">
-                                                                {String(item.hesap_adi).toUpperCase()}
-                                                            </div>
-                                                            <div className="pt-cat-item-sub">{item.alt_kalem}</div>
-                                                        </div>
-
-                                                        <div className="pt-cat-item-amount">
-                                                            {fmt(item.tutar, true)}
-                                                        </div>
+                                            <div className="pt-service-metrics">
+                                                {showSales && (
+                                                    <div className="pt-metric-box">
+                                                        <span>Satış</span>
+                                                        <strong>{fmt(s.s, true)}</strong>
                                                     </div>
-                                                ))}
+                                                )}
+
+                                                {showPurchase && (
+                                                    <div className="pt-metric-box">
+                                                        <span>Alış</span>
+                                                        <strong>{fmt(s.p, true)}</strong>
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </section>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </section>
 
-                <section className="pt-panel pt-panel-plates">
-                    <div className="pt-panel-title">Plakalar ({byPlate.length})</div>
-
-                    {byPlate.length === 0 ? (
-                        <div className="pt-empty">Veri yok</div>
-                    ) : (
-                        <div className="pt-plate-grid">
-                            {byPlate.map((plate) => (
-                                <button
-                                    key={plate}
-                                    type="button"
-                                    className="pt-plate-chip"
-                                    onClick={() => onPlateClick?.(plate)}
-                                    title={plate}
-                                >
-                                    {plate}
-                                </button>
-                            ))}
+                    <section className="pt-panel pt-panel-costs">
+                        <div className="pt-panel-title">
+                            Genel Dağılım Maliyetleri ({monthlyDagilim.length})
                         </div>
-                    )}
-                </section>
+
+                        {monthlyDagilim.length === 0 ? (
+                            <div className="pt-empty">Dağılım verisi yok</div>
+                        ) : (
+                            <div className="pt-scroll pt-cost-scroll">
+                                {CAT_CONFIG.map(({ key, label, color }) => {
+                                    const items = categorized[key];
+                                    if (items.length === 0) return null;
+
+                                    const total = items.reduce((sum, item) => sum + item.tutar, 0);
+                                    const isOpen = !!openCats[key];
+
+                                    return (
+                                        <div key={key}>
+                                            <div
+                                                className={`pt-cat-header${isOpen ? " open" : ""}`}
+                                                onClick={() => toggleCat(key)}
+                                            >
+                                                <div className="pt-cat-left">
+                                                    <span
+                                                        className="pt-cat-dot"
+                                                        style={{ background: color }}
+                                                    />
+                                                    <span className="pt-cat-name">{label}</span>
+                                                    <span className="pt-cat-count">{items.length} kalem</span>
+                                                </div>
+
+                                                <div className="pt-cat-right">
+                                                    <span className="pt-cat-total">{fmt(total, true)}</span>
+                                                    <span className="pt-cat-chevron">{isOpen ? "▲" : "▼"}</span>
+                                                </div>
+                                            </div>
+
+                                            {isOpen && (
+                                                <div className="pt-cat-body">
+                                                    {items.map((item) => {
+                                                        const isBusy = busyRowId === item.kayit_id;
+                                                        const isMenuOpen = openMenuRowId === item.kayit_id;
+
+                                                        return (
+                                                            <div
+                                                                className="pt-cat-item"
+                                                                key={item.kayit_id}
+                                                            >
+                                                                <div className="pt-cat-item-main">
+                                                                    <div className="pt-cat-item-top">
+                                                                        <div className="pt-cat-item-title">
+                                                                            {String(item.hesap_adi).toUpperCase()}
+                                                                        </div>
+
+                                                                        <div
+                                                                            className="pt-item-menu-wrap"
+                                                                            ref={isMenuOpen ? menuRef : null}
+                                                                        >
+                                                                            <button
+                                                                                type="button"
+                                                                                className="pt-icon-btn"
+                                                                                disabled={isBusy}
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setOpenMenuRowId((prev) =>
+                                                                                        prev === item.kayit_id ? null : item.kayit_id
+                                                                                    );
+                                                                                }}
+                                                                                title="İşlemler"
+                                                                            >
+                                                                                ⋯
+                                                                            </button>
+
+                                                                            {isMenuOpen && (
+                                                                                <div className="pt-item-menu">
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        className="pt-item-menu-btn"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            openModal("edit", item);
+                                                                                        }}
+                                                                                    >
+                                                                                        Düzenle
+                                                                                    </button>
+
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        className="pt-item-menu-btn"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            openModal("move", item);
+                                                                                        }}
+                                                                                    >
+                                                                                        Farklı projeye ata
+                                                                                    </button>
+
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        className="pt-item-menu-btn danger"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            openModal("delete", item);
+                                                                                        }}
+                                                                                    >
+                                                                                        Sil
+                                                                                    </button>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="pt-cat-item-sub">
+                                                                        {item.alt_kalem}
+                                                                        {item.kullanici_adi
+                                                                            ? ` • ${item.kullanici_adi}`
+                                                                            : ""}
+                                                                    </div>
+
+                                                                    <div className="pt-cat-item-meta">
+                                                                        Proje: {item.proje_adi || "-"}
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="pt-cat-item-side">
+                                                                    <div className="pt-cat-item-amount">
+                                                                        {fmt(item.tutar, true)}
+                                                                    </div>
+
+                                                                    {isBusy && (
+                                                                        <div className="pt-cat-item-loading">
+                                                                            Kaydediliyor...
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </section>
+
+                    <section className="pt-panel pt-panel-plates">
+                        <div className="pt-panel-title">Plakalar ({byPlate.length})</div>
+
+                        {byPlate.length === 0 ? (
+                            <div className="pt-empty">Veri yok</div>
+                        ) : (
+                            <div className="pt-plate-grid">
+                                {byPlate.map((plate) => (
+                                    <button
+                                        key={plate}
+                                        type="button"
+                                        className="pt-plate-chip"
+                                        onClick={() => onPlateClick?.(plate)}
+                                        title={plate}
+                                    >
+                                        {plate}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </section>
+                </div>
             </div>
-        </div>
+
+            <DagilimModal
+                open={!!modalMode && !!activeItem}
+                mode={modalMode}
+                item={activeItem}
+                allProjects={allProjects}
+                loading={!!busyRowId}
+                error={modalError}
+                onClose={closeModal}
+                onSubmitEdit={submitEdit}
+                onSubmitMove={submitMove}
+                onSubmitDelete={submitDelete}
+            />
+        </>
     );
 }
 
 const CURRENCY_FORMAT = '#,##0.00 [$₺-tr-TR]';
-const PERCENT_FORMAT = '0.00%';
+const PERCENT_FORMAT = "0.00%";
 
 function money(v) {
     return Number(v || 0);
@@ -486,14 +1048,19 @@ export default function ProjeTablosu({
     const [search, setSearch] = useState("");
     const [sort, setSort] = useState("profit");
     const [selPlate, setSelPlate] = useState(null);
+    const [dagilimStateRows, setDagilimStateRows] = useState(projeDagilimRows || []);
+
+    useEffect(() => {
+        setDagilimStateRows(projeDagilimRows || []);
+    }, [projeDagilimRows]);
 
     const filteredDagilimRows = useMemo(() => {
-        if (!selectedMonth) return projeDagilimRows || [];
+        if (!selectedMonth) return dagilimStateRows || [];
 
-        return (projeDagilimRows || []).filter(
+        return (dagilimStateRows || []).filter(
             (row) => Number(row.donem_ay || 0) === Number(selectedMonth)
         );
-    }, [projeDagilimRows, selectedMonth]);
+    }, [dagilimStateRows, selectedMonth]);
 
     const monthlyDagilimTotal = useMemo(() => {
         return filteredDagilimRows.reduce(
@@ -503,7 +1070,7 @@ export default function ProjeTablosu({
     }, [filteredDagilimRows]);
 
     const enrichedProjects = useMemo(() => {
-        return projects.map((project) => {
+        return projects.map((project, index) => {
             const projectDagilim = filteredDagilimRows.filter(
                 (row) =>
                     norm(row.reel_proje_adi || row.proje_adi) === norm(project.projectName)
@@ -519,6 +1086,12 @@ export default function ProjeTablosu({
 
             return {
                 ...project,
+                key:
+                    project.id ??
+                    project.projectId ??
+                    project.reel_proje_adi ??
+                    project.projectName ??
+                    `project-${index}`,
                 dagitimToplamAlis,
                 purchaseTotalWithDagilim: yeniAlis,
                 profitWithDagilim: yeniKar,
@@ -571,6 +1144,37 @@ export default function ProjeTablosu({
     };
 
     const formatPercent = (value) => `%${(value * 100).toFixed(1)}`;
+
+    const handleUpdateDagilimRow = (rowId, patch) => {
+        setDagilimStateRows((prev) =>
+            prev.map((row) => {
+                const currentId = row.kayit_id || row.id;
+                if (String(currentId) !== String(rowId)) return row;
+                return { ...row, ...patch };
+            })
+        );
+    };
+
+    const handleMoveDagilimRow = (rowId, targetProjectName, targetProjectId) => {
+        setDagilimStateRows((prev) =>
+            prev.map((row) => {
+                const currentId = row.kayit_id || row.id;
+                if (String(currentId) !== String(rowId)) return row;
+                return {
+                    ...row,
+                    proje_id: targetProjectId,
+                    proje_adi: targetProjectName,
+                    reel_proje_adi: targetProjectName,
+                };
+            })
+        );
+    };
+
+    const handleDeleteDagilimRow = (rowId) => {
+        setDagilimStateRows((prev) =>
+            prev.filter((row) => String(row.kayit_id || row.id) !== String(rowId))
+        );
+    };
 
     const handleExportExcel = async () => {
         const workbook = new ExcelJS.Workbook();
@@ -655,8 +1259,6 @@ export default function ProjeTablosu({
             "Plaka Sayısı",
             "Satış",
             "Alış",
-            "Genel Dağılım",
-            "Toplam Alış",
             "Kâr / Zarar",
             "Karlılık",
         ]);
@@ -671,22 +1273,20 @@ export default function ProjeTablosu({
                     p.projectName,
                     Number(p.plateCount || 0),
                     money(p.salesTotal),
-                    money(p.purchaseTotal),
-                    money(p.dagitimToplamAlis),
                     money(p.purchaseTotalWithDagilim),
                     money(p.profitWithDagilim),
                     percent(profitability),
                 ],
                 {
                     leftCols: 1,
-                    currencyCols: [3, 4, 5, 6, 7],
-                    percentCols: [8],
-                    highlightProfitCol: 7,
+                    currencyCols: [3, 4, 5],
+                    percentCols: [6],
+                    highlightProfitCol: 5,
                 }
             );
 
             row.getCell(2).alignment = { horizontal: "center", vertical: "middle" };
-            row.getCell(8).font = {
+            row.getCell(6).font = {
                 name: "Aptos",
                 size: 10.5,
                 bold: true,
@@ -701,17 +1301,15 @@ export default function ProjeTablosu({
                 "Genel Toplam",
                 "",
                 money(totals.s),
-                money(totals.basePurchase),
-                money(totals.dagilim),
                 money(totals.p),
                 money(totalProfit),
                 percent(totalProfitability),
             ],
             {
                 leftCols: 1,
-                currencyCols: [3, 4, 5, 6, 7],
-                percentCols: [8],
-                highlightProfitCol: 7,
+                currencyCols: [3, 4, 5],
+                percentCols: [6],
+                highlightProfitCol: 5,
                 fill: "F8FBFF",
             }
         );
@@ -1018,7 +1616,6 @@ export default function ProjeTablosu({
                                 <th className="pt-col-plate">Sefer / Plaka</th>
                                 <th className="pt-col-money">Satış</th>
                                 <th className="pt-col-money">Alış</th>
-                                <th className="pt-col-money">Genel Dağılım</th>
                                 <th className="pt-col-money">Kâr / Zarar</th>
                                 <th className="pt-col-profit">Karlılık</th>
                             </tr>
@@ -1027,22 +1624,29 @@ export default function ProjeTablosu({
                         <tbody>
                             {filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8}>
+                                    <td colSpan={7}>
                                         <div className="pt-empty">Proje bulunamadı.</div>
                                     </td>
                                 </tr>
                             ) : (
-                                filtered.map((project) => {
-                                    const isOpen = expanded === project.key;
+                                filtered.map((project, index) => {
+                                    const projectRowKey =
+                                        project.key ??
+                                        project.id ??
+                                        project.projectId ??
+                                        project.projectName ??
+                                        `project-row-${index}`;
+
+                                    const isOpen = expanded === projectRowKey;
                                     const profitability = getProfitability(project);
 
                                     return (
-                                        <React.Fragment key={project.key}>
+                                        <React.Fragment key={projectRowKey}>
                                             <tr
                                                 className={`pt-row ${isOpen ? "expanded" : ""}`}
                                                 onClick={() =>
                                                     setExpanded((prev) =>
-                                                        prev === project.key ? null : project.key
+                                                        prev === projectRowKey ? null : projectRowKey
                                                     )
                                                 }
                                             >
@@ -1067,11 +1671,7 @@ export default function ProjeTablosu({
                                                 </td>
 
                                                 <td className="pt-right pt-money pt-col-money">
-                                                    {fmt(project.purchaseTotal, true)}
-                                                </td>
-
-                                                <td className="pt-right pt-money pt-col-money">
-                                                    {fmt(project.dagitimToplamAlis, true)}
+                                                    {fmt(project.purchaseTotalWithDagilim, true)}
                                                 </td>
 
                                                 <td className="pt-right pt-money pt-col-money">
@@ -1090,16 +1690,25 @@ export default function ProjeTablosu({
 
                                             {isOpen && (
                                                 <tr>
-                                                    <td colSpan={8} className="pt-expanded-cell">
+                                                    <td colSpan={7} className="pt-expanded-cell">
                                                         <ServiceBreakdown
                                                             details={project.details}
                                                             onPlateClick={setSelPlate}
-                                                            projeDagilimRows={filteredDagilimRows.filter(
-                                                                (row) =>
-                                                                    norm(row.reel_proje_adi || row.proje_adi) ===
-                                                                    norm(project.projectName)
-                                                            )}
+                                                            projeDagilimRows={filteredDagilimRows.filter((row) => {
+                                                                const rowProjectName = norm(row.reel_proje_adi || row.proje_adi || "");
+                                                                const currentProjectName = norm(project.projectName || "");
+                                                                const currentRealProjectName = norm(project.reel_proje_adi || "");
+
+                                                                return (
+                                                                    rowProjectName === currentProjectName ||
+                                                                    (currentRealProjectName && rowProjectName === currentRealProjectName)
+                                                                );
+                                                            })}
                                                             selectedMonth={selectedMonth}
+                                                            allProjects={projects}
+                                                            onUpdateDagilimRow={handleUpdateDagilimRow}
+                                                            onMoveDagilimRow={handleMoveDagilimRow}
+                                                            onDeleteDagilimRow={handleDeleteDagilimRow}
                                                         />
                                                     </td>
                                                 </tr>
@@ -1127,11 +1736,7 @@ export default function ProjeTablosu({
                                 </td>
 
                                 <td className="pt-right pt-money pt-col-money">
-                                    {fmt(totals.basePurchase, true)}
-                                </td>
-
-                                <td className="pt-right pt-money pt-col-money">
-                                    {fmt(totals.dagilim, true)}
+                                    {fmt(totals.p, true)}
                                 </td>
 
                                 <td className="pt-right pt-money pt-col-money">
