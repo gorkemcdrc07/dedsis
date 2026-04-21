@@ -9,32 +9,7 @@ import { supabase } from "../../lib/supabase";
 const IK_KEYWORDS = ["ik", "personel", "maaş", "sgk", "işçi", "çalışan", "prim"];
 const MUH_KEYWORDS = ["muhasebe", "vergi", "kdv", "stopaj", "mali", "denetim", "fatura"];
 
-async function apiRequest(url, options = {}) {
-    const response = await fetch(url, {
-        headers: {
-            "Content-Type": "application/json",
-            ...(options.headers || {}),
-        },
-        ...options,
-    });
 
-    if (!response.ok) {
-        let message = "İşlem başarısız.";
-        try {
-            const data = await response.json();
-            message = data?.message || message;
-        } catch {
-            // ignore
-        }
-        throw new Error(message);
-    }
-
-    try {
-        return await response.json();
-    } catch {
-        return null;
-    }
-}
 
 function getSourceConfig(item) {
     const kaynak = String(item?.kaynak_tablo || "").toLowerCase().trim();
