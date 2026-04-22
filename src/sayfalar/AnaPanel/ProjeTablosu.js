@@ -8,8 +8,7 @@ import { supabase } from "../../lib/supabase";
 
 const IK_KEYWORDS = ["ik", "personel", "maaş", "sgk", "işçi", "çalışan", "prim"];
 const MUH_KEYWORDS = ["muhasebe", "vergi", "kdv", "stopaj", "mali", "denetim", "fatura"];
-
-
+const DIGER_GIDER_KEYWORDS = ["sabit maliyet", "sabit maliyetler", "genel gider", "diğer gider", "diger gider"];
 
 function getSourceConfig(item) {
     const kaynak = String(item?.kaynak_tablo || "").toLowerCase().trim();
@@ -283,7 +282,11 @@ function ServiceBreakdown({
 }) {
     const [svcF, setSvcF] = useState("");
     const [plateSearch, setPlateSearch] = useState("");
-    const [openCats, setOpenCats] = useState({});
+    const [openCats, setOpenCats] = useState({
+        ik: true,
+        muhasebe: true,
+        diger: true,
+    });
     const [busyRowId, setBusyRowId] = useState(null);
     const [openMenuRowId, setOpenMenuRowId] = useState(null);
     const [modalMode, setModalMode] = useState(null);
@@ -344,9 +347,12 @@ function ServiceBreakdown({
     }, [projeDagilimRows, selectedMonth]);
 
     const categorize = React.useCallback((item) => {
-        const text = `${item.hesap_adi} ${item.alt_kalem}`.toLowerCase();
-        const kaynak = String(item.kaynak_tablo || "").toLowerCase().trim();
-        const altKalem = String(item.alt_kalem || "").toLowerCase().trim();
+        const hesapAdi = String(item.hesap_adi || "").toLocaleLowerCase("tr-TR");
+        const altKalem = String(item.alt_kalem || "").toLocaleLowerCase("tr-TR");
+        const kaynak = String(item.kaynak_tablo || "").toLocaleLowerCase("tr-TR").trim();
+        const text = `${hesapAdi} ${altKalem} ${kaynak}`;
+
+        if (DIGER_GIDER_KEYWORDS.some((k) => text.includes(k))) return "diger";
 
         if (kaynak === "ik") return "ik";
         if (kaynak === "muhasebe") return "muhasebe";
@@ -369,9 +375,9 @@ function ServiceBreakdown({
     }, [monthlyDagilim, categorize]);
 
     const CAT_CONFIG = [
-        { key: "ik", label: "İK", color: "#7C3AED" },
-        { key: "muhasebe", label: "Muhasebe", color: "#059669" },
-        { key: "diger", label: "Diğer", color: "#64748B" },
+        { key: "ik", label: "İK", color: "#7C3AED", emptyText: "İK kaydı yok" },
+        { key: "muhasebe", label: "Muhasebe", color: "#059669", emptyText: "Muhasebe kaydı yok" },
+        { key: "diger", label: "Diğer Giderler", color: "#64748B", emptyText: "Diğer gider kaydı yok" },
     ];
 
     const svcOpts = useMemo(
@@ -649,41 +655,39 @@ function ServiceBreakdown({
                             Genel Dağılım Maliyetleri ({monthlyDagilim.length})
                         </div>
 
-                        {monthlyDagilim.length === 0 ? (
-                            <div className="pt-empty">Dağılım verisi yok</div>
-                        ) : (
-                            <div className="pt-scroll pt-cost-scroll">
-                                {CAT_CONFIG.map(({ key, label, color }) => {
-                                    const items = categorized[key];
-                                    if (items.length === 0) return null;
+                        <div className="pt-scroll pt-cost-scroll">
+                            {CAT_CONFIG.map(({ key, label, color, emptyText }) => {
+                                const items = categorized[key] || [];
+                                const total = items.reduce((sum, item) => sum + item.tutar, 0);
+                                const isOpen = !!openCats[key];
 
-                                    const total = items.reduce((sum, item) => sum + item.tutar, 0);
-                                    const isOpen = !!openCats[key];
-
-                                    return (
-                                        <div key={key}>
-                                            <div
-                                                className={`pt-cat-header${isOpen ? " open" : ""}`}
-                                                onClick={() => toggleCat(key)}
-                                            >
-                                                <div className="pt-cat-left">
-                                                    <span
-                                                        className="pt-cat-dot"
-                                                        style={{ background: color }}
-                                                    />
-                                                    <span className="pt-cat-name">{label}</span>
-                                                    <span className="pt-cat-count">{items.length} kalem</span>
-                                                </div>
-
-                                                <div className="pt-cat-right">
-                                                    <span className="pt-cat-total">{fmt(total, true)}</span>
-                                                    <span className="pt-cat-chevron">{isOpen ? "▲" : "▼"}</span>
-                                                </div>
+                                return (
+                                    <div key={key}>
+                                        <div
+                                            className={`pt-cat-header${isOpen ? " open" : ""}`}
+                                            onClick={() => toggleCat(key)}
+                                        >
+                                            <div className="pt-cat-left">
+                                                <span
+                                                    className="pt-cat-dot"
+                                                    style={{ background: color }}
+                                                />
+                                                <span className="pt-cat-name">{label}</span>
+                                                <span className="pt-cat-count">{items.length} kalem</span>
                                             </div>
 
-                                            {isOpen && (
-                                                <div className="pt-cat-body">
-                                                    {items.map((item) => {
+                                            <div className="pt-cat-right">
+                                                <span className="pt-cat-total">{fmt(total, true)}</span>
+                                                <span className="pt-cat-chevron">{isOpen ? "▲" : "▼"}</span>
+                                            </div>
+                                        </div>
+
+                                        {isOpen && (
+                                            <div className="pt-cat-body">
+                                                {items.length === 0 ? (
+                                                    <div className="pt-empty">{emptyText}</div>
+                                                ) : (
+                                                    items.map((item) => {
                                                         const isBusy = busyRowId === item.kayit_id;
                                                         const isMenuOpen = openMenuRowId === item.kayit_id;
 
@@ -781,14 +785,14 @@ function ServiceBreakdown({
                                                                 </div>
                                                             </div>
                                                         );
-                                                    })}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
+                                                    })
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </section>
 
                     <section className="pt-panel pt-panel-plates">
@@ -1581,6 +1585,8 @@ export default function ProjeTablosu({
                         </span>
                     </div>
                 </div>
+
+
 
                 <div className="pt-table-wrap">
                     <table className="pt-table">

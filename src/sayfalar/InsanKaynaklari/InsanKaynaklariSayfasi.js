@@ -467,6 +467,7 @@ export default function InsanKaynaklariSayfasi() {
                 _adSoyadColumn: adSoyadColumn,
                 _tutarColumn: tutarColumn,
                 _excelAdSoyad: excelAdSoyad,
+                _brutAylik: tutarColumn ? toNumberTR(row[tutarColumn]) : 0,
                 _matchedUser: matchedUser,
                 _matchedUserId: matchedUser?.id || null,
                 _matchedUserName: matchedUser?.kullanici_adi || "",
@@ -1044,9 +1045,8 @@ export default function InsanKaynaklariSayfasi() {
                                         <tr>
                                             <th>Eşleşen Kullanıcı</th>
                                             <th>Durum</th>
-                                            {dataHeaders.map((header) => (
-                                                <th key={header}>{header}</th>
-                                            ))}
+                                            <th>Adı Soyadı</th>
+                                            <th>Brüt Aylık</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -1065,19 +1065,17 @@ export default function InsanKaynaklariSayfasi() {
                                                             </span>
                                                         )}
                                                     </td>
-                                                    {dataHeaders.map((header) => (
-                                                        <td key={`${rowIndex}-${header}`}>
-                                                            {row[header]}
-                                                        </td>
-                                                    ))}
+                                                    <td>{row._excelAdSoyad || "—"}</td>
+                                                    <td>
+                                                        {row._tutarColumn
+                                                            ? formatMoney(toNumberTR(row[row._tutarColumn]))
+                                                            : "—"}
+                                                    </td>
                                                 </tr>
                                             ))
                                         ) : (
                                             <tr>
-                                                <td
-                                                    colSpan={dataHeaders.length + 2}
-                                                    className="ik-bos-veri"
-                                                >
+                                                <td colSpan={4} className="ik-bos-veri">
                                                     Gösterilecek veri bulunamadı.
                                                 </td>
                                             </tr>
@@ -1092,18 +1090,21 @@ export default function InsanKaynaklariSayfasi() {
                                         <table className="ik-tablo">
                                             <thead>
                                                 <tr>
-                                                    {dataHeaders.map((header) => (
-                                                        <th key={`summary-${header}`}>{header}</th>
-                                                    ))}
+                                                    <th>Adı Soyadı</th>
+                                                    <th>Brüt Aylık</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 <tr>
-                                                    {dataHeaders.map((header) => (
-                                                        <td key={`summary-value-${header}`}>
-                                                            {excelData.summaryRow[header] || ""}
-                                                        </td>
-                                                    ))}
+                                                    <td>{excelData.summaryRow[detectAdSoyadColumn(excelData.summaryRow)] || ""}</td>
+                                                    <td>
+                                                        {(() => {
+                                                            const tutarColumn = detectTutarColumn(excelData.summaryRow);
+                                                            return tutarColumn
+                                                                ? formatMoney(toNumberTR(excelData.summaryRow[tutarColumn]))
+                                                                : "";
+                                                        })()}
+                                                    </td>
                                                 </tr>
                                             </tbody>
                                         </table>

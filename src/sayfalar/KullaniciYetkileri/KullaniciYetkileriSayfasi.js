@@ -12,9 +12,50 @@ function totalPct(projects = []) {
 }
 
 function pctStatus(total) {
-    if (total === 100) return "ok";
-    if (total > 100) return "over";
+    const rounded = Math.round(Number(total) * 100);
+
+    if (rounded === 10000) return "ok";
+    if (rounded > 10000) return "over";
     return "under";
+}
+
+function buildEqualDistribution(items = []) {
+    const ids = [...items];
+    const count = ids.length;
+    if (!count) return {};
+
+    const TOTAL = 10000; // 100.00
+    const base = Math.floor(TOTAL / count);
+    let remainder = TOTAL - base * count;
+
+    const result = {};
+
+    ids.forEach((id) => {
+        const value = base + (remainder > 0 ? 1 : 0);
+        if (remainder > 0) remainder--;
+
+        result[id] = value / 100;
+    });
+
+    return result;
+}
+
+function normalizeProjectName(p) {
+    return String(p?.reel_proje_adi || p?.proje_adi || p?.proje || "")
+        .trim()
+        .toUpperCase();
+}
+
+function uniqByProjectName(list = []) {
+    return Object.values(
+        list.reduce((acc, item) => {
+            const key = normalizeProjectName(item);
+            if (key && !acc[key]) {
+                acc[key] = item;
+            }
+            return acc;
+        }, {})
+    );
 }
 
 // ─── UserCard ────────────────────────────────────────────────────────────────
@@ -32,8 +73,11 @@ function UserCard({ user, selected, onClick, localPct }) {
     const merged = user.projeler.map((p) => ({
         ...p,
         yuzde:
-            localPct[p.projeId] !== undefined ? localPct[p.projeId] : p.yuzde,
+            localPct[p.dagilimId] !== undefined
+                ? localPct[p.dagilimId]
+                : p.yuzde,
     }));
+
     const total = totalPct(merged);
     const status = pctStatus(total);
     const hasLocal = Object.keys(localPct).length > 0;
@@ -62,7 +106,9 @@ function UserCard({ user, selected, onClick, localPct }) {
                         {user.projeler.length} proje
                     </div>
                 </div>
-                <div className={`ky-badge ky-badge--${status}`}>%{total}</div>
+                <div className={`ky-badge ky-badge--${status}`}>
+                    %{total.toFixed(2)}
+                </div>
             </div>
 
             <div className="ky-card__bar-wrap">
@@ -74,8 +120,8 @@ function UserCard({ user, selected, onClick, localPct }) {
 
             <div className="ky-card__chips">
                 {merged.slice(0, 4).map((p) => (
-                    <span key={p.projeId} className="ky-chip">
-                        {p.proje} <b>%{p.yuzde}</b>
+                    <span key={p.dagilimId} className="ky-chip">
+                        {p.proje} <b>%{Number(p.yuzde).toFixed(2)}</b>
                     </span>
                 ))}
                 {merged.length > 4 && (
@@ -99,7 +145,7 @@ function SliderRow({ project, value, onChange, onRemove }) {
                     type="range"
                     min={0}
                     max={100}
-                    step={1}
+                    step={0.01}
                     value={value}
                     onChange={(e) => onChange(Number(e.target.value))}
                     className="ky-slider"
@@ -109,6 +155,7 @@ function SliderRow({ project, value, onChange, onRemove }) {
                         type="number"
                         min={0}
                         max={100}
+                        step={0.01}
                         value={value}
                         onChange={(e) => onChange(Number(e.target.value))}
                         className="ky-num-input"
@@ -141,6 +188,7 @@ function EditPanel({
     onAddNew,
     onAssign,
     onShare,
+    onAssignAllProjectsEqual,
     isSaving,
 }) {
     const [newName, setNewName] = useState("");
@@ -152,22 +200,31 @@ function EditPanel({
     const merged = user.projeler.map((p) => ({
         ...p,
         yuzde:
-            localPct[p.projeId] !== undefined ? localPct[p.projeId] : p.yuzde,
+            localPct[p.dagilimId] !== undefined
+                ? localPct[p.dagilimId]
+                : p.yuzde,
     }));
+
     const total = totalPct(merged);
     const status = pctStatus(total);
     const hasUnsaved = Object.keys(localPct).length > 0;
 
-    const existingIds = user.projeler.map((p) => p.projeId);
-    const assignable = allProjects.filter((p) => !existingIds.includes(p.id));
+    const existingProjectNames = new Set(
+        (user.projeler || []).map((p) => normalizeProjectName(p))
+    );
+
+    const assignable = uniqByProjectName(allProjects).filter(
+        (p) => !existingProjectNames.has(normalizeProjectName(p))
+    );
+
     const otherUsers = allUsers.filter((u) => u.id !== user.id);
 
     const statusMsg =
         status === "ok"
-            ? "✓ Toplam %100 — dağılım tamamlandı"
+            ? `✓ Toplam %${total.toFixed(2)} — dağılım tamamlandı`
             : status === "over"
-                ? `⚠ Toplam %${total} — %${total - 100} fazla`
-                : `⚠ Toplam %${total} — %${100 - total} eksik`;
+                ? `⚠ Toplam %${total.toFixed(2)} — %${(total - 100).toFixed(2)} fazla`
+                : `⚠ Toplam %${total.toFixed(2)} — %${(100 - total).toFixed(2)} eksik`;
 
     return (
         <div className="ky-panel">
@@ -220,14 +277,14 @@ function EditPanel({
                             <div className="ky-slider-list">
                                 {merged.map((p) => (
                                     <SliderRow
-                                        key={p.projeId}
+                                        key={p.dagilimId}
                                         project={p}
                                         value={Number(p.yuzde) || 0}
                                         onChange={(v) =>
-                                            onPctChange(user.id, p.projeId, v)
+                                            onPctChange(user.id, p.dagilimId, v)
                                         }
                                         onRemove={() =>
-                                            onRemove(user.id, p.projeId)
+                                            onRemove(user.id, p.dagilimId)
                                         }
                                     />
                                 ))}
@@ -239,14 +296,16 @@ function EditPanel({
                                 type="button"
                                 className="ky-auto-btn"
                                 onClick={() => {
-                                    const each = Math.floor(100 / merged.length);
-                                    merged.forEach((p, i) => {
-                                        const v =
-                                            i === merged.length - 1
-                                                ? 100 -
-                                                each * (merged.length - 1)
-                                                : each;
-                                        onPctChange(user.id, p.projeId, v);
+                                    const equalMap = buildEqualDistribution(
+                                        merged.map((p) => p.dagilimId)
+                                    );
+
+                                    merged.forEach((p) => {
+                                        onPctChange(
+                                            user.id,
+                                            p.dagilimId,
+                                            equalMap[p.dagilimId]
+                                        );
                                     });
                                 }}
                             >
@@ -340,6 +399,24 @@ function EditPanel({
 
                         <div className="ky-manage__section">
                             <div className="ky-manage__label">
+                                Tüm projeleri kullanıcıya ekle
+                            </div>
+                            <div className="ky-manage__row">
+                                <button
+                                    type="button"
+                                    className="ky-action-btn ky-action-btn--success"
+                                    onClick={() => onAssignAllProjectsEqual(user.id)}
+                                    disabled={allProjects.length === 0 || isSaving}
+                                >
+                                    {isSaving
+                                        ? "İşleniyor..."
+                                        : "Tüm Projeleri Ekle ve Eşit Dağıt"}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="ky-manage__section">
+                            <div className="ky-manage__label">
                                 Projeyi başka kullanıcıya da ver
                             </div>
                             <div className="ky-manage__col">
@@ -352,10 +429,7 @@ function EditPanel({
                                 >
                                     <option value="">Proje seç...</option>
                                     {user.projeler.map((p) => (
-                                        <option
-                                            key={p.projeId}
-                                            value={p.projeId}
-                                        >
+                                        <option key={p.dagilimId} value={p.projeId}>
                                             {p.proje}
                                         </option>
                                     ))}
@@ -400,7 +474,7 @@ function EditPanel({
                             <div className="ky-proj-tags">
                                 {user.projeler.map((p) => (
                                     <div
-                                        key={p.projeId}
+                                        key={p.dagilimId}
                                         className="ky-proj-tag"
                                     >
                                         <span>{p.proje}</span>
@@ -408,7 +482,7 @@ function EditPanel({
                                             type="button"
                                             className="ky-proj-tag__remove"
                                             onClick={() =>
-                                                onRemove(user.id, p.projeId)
+                                                onRemove(user.id, p.dagilimId)
                                             }
                                             title="Kaldır"
                                         >
@@ -486,6 +560,7 @@ export default function KullaniciYetkileriSayfasi() {
             projeler: (distData || [])
                 .filter((r) => r.kullanici_id === u.id)
                 .map((r) => ({
+                    dagilimId: r.id,
                     projeId: r.proje_id,
                     proje:
                         r.projeler?.reel_proje_adi ||
@@ -515,15 +590,16 @@ export default function KullaniciYetkileriSayfasi() {
         );
     }, [users, search]);
 
-    const handlePctChange = useCallback((userId, projeId, value) => {
+    const handlePctChange = useCallback((userId, dagilimId, value) => {
+        const parsed = Number(value);
         const v = Math.max(
             0,
-            Math.min(100, Number.isNaN(Number(value)) ? 0 : Number(value))
+            Math.min(100, Number.isNaN(parsed) ? 0 : Number(parsed.toFixed(2)))
         );
 
         setLocalPct((prev) => ({
             ...prev,
-            [userId]: { ...(prev[userId] || {}), [projeId]: v },
+            [userId]: { ...(prev[userId] || {}), [dagilimId]: v },
         }));
     }, []);
 
@@ -534,12 +610,12 @@ export default function KullaniciYetkileriSayfasi() {
         setSavingUsers((s) => new Set([...s, userId]));
 
         const results = await Promise.all(
-            Object.entries(changes).map(([projeId, yuzde]) =>
+            Object.entries(changes).map(([dagilimId, yuzde]) =>
                 supabase
                     .from("kullanici_proje_dagilim")
                     .update({ dagilim_yuzde: yuzde })
+                    .eq("id", Number(dagilimId))
                     .eq("kullanici_id", userId)
-                    .eq("proje_id", Number(projeId))
             )
         );
 
@@ -621,12 +697,12 @@ export default function KullaniciYetkileriSayfasi() {
         await loadData();
     };
 
-    const handleRemove = async (userId, projeId) => {
+    const handleRemove = async (userId, dagilimId) => {
         const { error } = await supabase
             .from("kullanici_proje_dagilim")
             .delete()
-            .eq("kullanici_id", userId)
-            .eq("proje_id", projeId);
+            .eq("id", dagilimId)
+            .eq("kullanici_id", userId);
 
         if (error) {
             alert("Proje kaldırılamadı.");
@@ -637,7 +713,7 @@ export default function KullaniciYetkileriSayfasi() {
             if (!prev[userId]) return prev;
 
             const n = { ...prev, [userId]: { ...prev[userId] } };
-            delete n[userId][projeId];
+            delete n[userId][dagilimId];
             if (!Object.keys(n[userId]).length) delete n[userId];
             return n;
         });
@@ -670,8 +746,154 @@ export default function KullaniciYetkileriSayfasi() {
         await loadData();
     };
 
+    const handleAssignAllProjectsEqual = async (userId) => {
+        const user = users.find((u) => u.id === userId);
+        if (!user) {
+            alert("Kullanıcı bulunamadı.");
+            return;
+        }
+
+        if (!allProjects.length) {
+            alert("Projeler bulunamadı.");
+            return;
+        }
+
+        setSavingUsers((s) => new Set([...s, userId]));
+
+        try {
+            const existingProjectNames = new Set(
+                (user.projeler || []).map((p) => normalizeProjectName(p))
+            );
+
+            const uniqueProjects = uniqByProjectName(allProjects);
+
+            const missingProjects = uniqueProjects.filter(
+                (p) => !existingProjectNames.has(normalizeProjectName(p))
+            );
+
+            if (missingProjects.length > 0) {
+                const insertPayload = missingProjects.map((p) => ({
+                    kullanici_id: userId,
+                    proje_id: p.id,
+                    dagilim_yuzde: 0,
+                }));
+
+                const { error: insertError } = await supabase
+                    .from("kullanici_proje_dagilim")
+                    .insert(insertPayload);
+
+                if (insertError) {
+                    alert("Projeler kullanıcıya eklenemedi.");
+                    return;
+                }
+            }
+
+            const { data: freshRows, error: freshErr } = await supabase
+                .from("kullanici_proje_dagilim")
+                .select(`
+                    id,
+                    proje_id,
+                    dagilim_yuzde,
+                    projeler:proje_id (
+                        id,
+                        proje_adi,
+                        reel_proje_adi
+                    )
+                `)
+                .eq("kullanici_id", userId);
+
+            if (freshErr || !freshRows) {
+                alert("Dağılım satırları alınamadı.");
+                return;
+            }
+
+            const uniqueFreshRows = Object.values(
+                freshRows.reduce((acc, row) => {
+                    const key = normalizeProjectName({
+                        reel_proje_adi: row.projeler?.reel_proje_adi,
+                        proje_adi: row.projeler?.proje_adi,
+                    });
+
+                    if (key && !acc[key]) {
+                        acc[key] = row;
+                    }
+                    return acc;
+                }, {})
+            );
+
+            const duplicateFreshRows = freshRows.filter((row) => {
+                const key = normalizeProjectName({
+                    reel_proje_adi: row.projeler?.reel_proje_adi,
+                    proje_adi: row.projeler?.proje_adi,
+                });
+
+                const keptRow = uniqueFreshRows.find((r) => {
+                    const keptKey = normalizeProjectName({
+                        reel_proje_adi: r.projeler?.reel_proje_adi,
+                        proje_adi: r.projeler?.proje_adi,
+                    });
+                    return keptKey === key;
+                });
+
+                return keptRow && keptRow.id !== row.id;
+            });
+
+            if (duplicateFreshRows.length > 0) {
+                const duplicateIds = duplicateFreshRows.map((row) => row.id);
+
+                const { error: deleteDupError } = await supabase
+                    .from("kullanici_proje_dagilim")
+                    .delete()
+                    .in("id", duplicateIds)
+                    .eq("kullanici_id", userId);
+
+                if (deleteDupError) {
+                    alert("Mükerrer proje kayıtları temizlenemedi.");
+                    return;
+                }
+            }
+
+            const equalMap = buildEqualDistribution(
+                uniqueFreshRows.map((r) => r.id)
+            );
+
+            const updateResults = await Promise.all(
+                uniqueFreshRows.map((row) =>
+                    supabase
+                        .from("kullanici_proje_dagilim")
+                        .update({ dagilim_yuzde: equalMap[row.id] })
+                        .eq("id", row.id)
+                        .eq("kullanici_id", userId)
+                )
+            );
+
+            if (updateResults.some(({ error }) => error)) {
+                alert("Yüzdeler eşit dağıtılamadı.");
+                return;
+            }
+
+            setLocalPct((prev) => {
+                const next = { ...prev };
+                delete next[userId];
+                return next;
+            });
+
+            await loadData();
+        } finally {
+            setSavingUsers((s) => {
+                const next = new Set(s);
+                next.delete(userId);
+                return next;
+            });
+        }
+    };
+
     const selectedUser = users.find((u) => u.id === selectedId) || null;
-    const invalidCount = users.filter((u) => totalPct(u.projeler) !== 100).length;
+
+    const invalidCount = users.filter(
+        (u) => Math.round(totalPct(u.projeler) * 100) !== 10000
+    ).length;
+
     const unsavedCount = Object.keys(localPct).length;
 
     if (loading) {
@@ -774,6 +996,7 @@ export default function KullaniciYetkileriSayfasi() {
                             onAddNew={handleAddNew}
                             onAssign={handleAssign}
                             onShare={handleShare}
+                            onAssignAllProjectsEqual={handleAssignAllProjectsEqual}
                             isSaving={savingUsers.has(selectedUser.id)}
                         />
                     </div>

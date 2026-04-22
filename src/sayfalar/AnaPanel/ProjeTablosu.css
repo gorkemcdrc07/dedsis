@@ -225,15 +225,28 @@
         padding: 16px 14px;
         border-bottom: 1px solid var(--pt-border);
         white-space: nowrap;
-        text-align: center;
         vertical-align: middle;
     }
+
+        .pt-table thead th.pt-col-toggle {
+            text-align: center;
+        }
 
         .pt-table thead th.pt-col-project {
             text-align: left;
         }
 
-    .pt-table tbody td,
+        .pt-table thead th.pt-col-plate {
+            text-align: center;
+        }
+
+        .pt-table thead th.pt-col-money {
+            text-align: center;
+        }
+
+        .pt-table thead th.pt-col-profit {
+            text-align: center;
+        }    .pt-table tbody td,
     .pt-table tfoot td {
         padding: 16px 14px;
         vertical-align: middle;
@@ -275,36 +288,24 @@
 }
 
 .pt-col-toggle {
-    width: 56px;
-    min-width: 56px;
-    max-width: 56px;
     text-align: center;
 }
 
 .pt-col-project {
-    width: 34%;
-    min-width: 34%;
     text-align: left;
 }
 
 .pt-col-plate {
-    width: 12%;
-    min-width: 12%;
     text-align: center;
 }
 
 .pt-col-money {
-    width: 13.5%;
-    min-width: 13.5%;
     text-align: right;
 }
 
 .pt-col-profit {
-    width: 13.5%;
-    min-width: 13.5%;
-    text-align: right;
+    text-align: center;
 }
-
 .pt-table tbody td.pt-col-project,
 .pt-table tfoot td.pt-col-project {
     text-align: left;
@@ -316,12 +317,14 @@
 }
 
 .pt-table tbody td.pt-col-money,
-.pt-table tfoot td.pt-col-money,
-.pt-table tbody td.pt-col-profit,
-.pt-table tfoot td.pt-col-profit {
-    text-align: right;
+.pt-table tfoot td.pt-col-money {
+    text-align: center;
 }
 
+.pt-table tbody td.pt-col-profit,
+.pt-table tfoot td.pt-col-profit {
+    text-align: center;
+}
 .pt-center {
     text-align: center;
 }
