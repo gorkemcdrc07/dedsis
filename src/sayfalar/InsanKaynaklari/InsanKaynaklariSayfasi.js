@@ -438,7 +438,6 @@ export default function InsanKaynaklariSayfasi() {
         [handleFile]
     );
 
-    const headers = useMemo(() => excelData?.headers || [], [excelData]);
 
     const userMap = useMemo(() => {
         const map = new Map();
