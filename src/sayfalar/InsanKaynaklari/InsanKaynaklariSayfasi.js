@@ -206,6 +206,8 @@ function detectTutarColumn(row) {
         "Isveren Maliyeti",
         "Toplam İşveren Maliyeti",
         "İşveren Toplam",
+        "İşveren maliyeti"
+
     ];
 
     const found = possibleNames.find(
