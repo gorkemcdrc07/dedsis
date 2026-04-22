@@ -201,14 +201,11 @@ function detectAdSoyadColumn(row) {
 
 function detectTutarColumn(row) {
     const possibleNames = [
-        "Brüt Aylık",
-        "BRÜT AYLIK",
-        "Brüt Ücret",
-        "Tutar",
-        "Net Ücret",
-        "Maaş",
-        "Toplam",
-        "Ücret",
+        "İşveren Maliyeti",
+        "İŞVEREN MALİYETİ",
+        "Isveren Maliyeti",
+        "Toplam İşveren Maliyeti",
+        "İşveren Toplam",
     ];
 
     const found = possibleNames.find(
@@ -217,7 +214,14 @@ function detectTutarColumn(row) {
     if (found) return found;
 
     const keys = Object.keys(row).filter((k) => !k.startsWith("_"));
-    return keys.find((key) => toNumberTR(row[key]) > 0) || null;
+
+    return keys.find((key) => {
+        const normalized = key
+            .toLocaleUpperCase("tr-TR")
+            .replace(/İ/g, "I");
+
+        return normalized.includes("ISVEREN") && normalized.includes("MALIYET");
+    }) || null;
 }
 
 const UploadIcon = () => (
