@@ -440,11 +440,6 @@ export default function InsanKaynaklariSayfasi() {
 
     const headers = useMemo(() => excelData?.headers || [], [excelData]);
 
-    const dataHeaders = useMemo(
-        () => headers.filter((h) => !String(h).startsWith("_")),
-        [headers]
-    );
-
     const userMap = useMemo(() => {
         const map = new Map();
         users.forEach((user) => map.set(normalizeName(user.kullanici_adi), user));
