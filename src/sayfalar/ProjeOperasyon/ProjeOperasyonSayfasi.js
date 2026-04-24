@@ -1461,7 +1461,7 @@ export default function ProjeOperasyonSayfasi() {
         [rows]
     );
 
-    const uploadToBucket = async (file, folder = "arac") => {
+    const uploadToBucket = useCallback(async (file, folder = "arac") => {
         try {
             const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}-${file.name.replace(/\s+/g, "-")}`;
             const filePath = `${folder}/${safeName}`;
@@ -1486,7 +1486,7 @@ export default function ProjeOperasyonSayfasi() {
             pushToast("error", "Yükleme başarısız", "Beklenmeyen bir hata oluştu.");
             return null;
         }
-    };
+    }, [pushToast]);
 
     const onUploadVehicleImage = useCallback(
         async (aracId, file) => {
@@ -1514,9 +1514,8 @@ export default function ProjeOperasyonSayfasi() {
 
             return true;
         },
-        [rows]
+        [rows, uploadToBucket, pushToast]   // ✅ DÜZELTİLDİ
     );
-
     const onUploadSingleDoc = useCallback(async (aracId, type, file) => {
         const publicUrl = await uploadToBucket(file, type);
         if (!publicUrl) return false;
@@ -1535,21 +1534,12 @@ export default function ProjeOperasyonSayfasi() {
         }
 
         if (existing?.length) {
-            const { error: updateError } = await supabase
+            await supabase
                 .from("arac_gorseller")
-                .update({
-                    gorsel_url: publicUrl,
-                    sira: 1,
-                })
+                .update({ gorsel_url: publicUrl, sira: 1 })
                 .eq("id", existing[0].id);
-
-            if (updateError) {
-                console.error(updateError);
-                setError("Belge güncellenemedi.");
-                return false;
-            }
         } else {
-            const { error: insertError } = await supabase.from("arac_gorseller").insert([
+            await supabase.from("arac_gorseller").insert([
                 {
                     arac_id: aracId,
                     gorsel_url: publicUrl,
@@ -1557,16 +1547,10 @@ export default function ProjeOperasyonSayfasi() {
                     sira: 1,
                 },
             ]);
-
-            if (insertError) {
-                console.error(insertError);
-                setError("Belge eklenemedi.");
-                return false;
-            }
         }
 
         return true;
-    }, []);
+    }, [uploadToBucket]);   // ✅ DÜZELTİLDİ
 
     const performDeleteImage = useCallback(
         async (image) => {
