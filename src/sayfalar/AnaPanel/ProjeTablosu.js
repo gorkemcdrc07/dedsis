@@ -1022,6 +1022,7 @@ export default function ProjeTablosu({
     allRows = [],
     projeDagilimRows = [],
     selectedMonth,
+    overallTotals = null,
 }) {
     const [expanded, setExpanded] = useState(null);
     const [search, setSearch] = useState("");
@@ -1049,10 +1050,19 @@ export default function ProjeTablosu({
     }, [filteredDagilimRows]);
 
     const enrichedProjects = useMemo(() => {
-        return projects.map((project, index) => {
+        const grouped = new Map();
+
+        projects.forEach((project, index) => {
+            const groupName = String(
+                project.projeMaster?.reel_proje_adi || project.projectName || ""
+            ).trim();
+
+            if (!groupName) return;
+
+            const currentProjectId = Number(project.projeMaster?.id);
+
             const projectDagilim = filteredDagilimRows.filter(
-                (row) =>
-                    norm(row.reel_proje_adi || row.proje_adi) === norm(project.projectName)
+                (row) => Number(row.proje_id) === currentProjectId
             );
 
             const dagitimToplamAlis = projectDagilim.reduce(
@@ -1060,24 +1070,46 @@ export default function ProjeTablosu({
                 0
             );
 
-            const yeniAlis = Number(project.purchaseTotal || 0) + dagitimToplamAlis;
-            const yeniKar = Number(project.salesTotal || 0) - yeniAlis;
+            const existing = grouped.get(groupName);
+
+            if (!existing) {
+                grouped.set(groupName, {
+                    ...project,
+                    key: `group-${groupName}-${index}`,
+                    projectName: groupName,
+                    dagitimToplamAlis,
+                    purchaseTotal: Number(project.purchaseTotal || 0),
+                    salesTotal: Number(project.salesTotal || 0),
+                    plateCount: Number(project.plateCount || 0),
+                    details: Array.isArray(project.details) ? [...project.details] : [],
+                });
+                return;
+            }
+
+            existing.purchaseTotal += Number(project.purchaseTotal || 0);
+            existing.salesTotal += Number(project.salesTotal || 0);
+            existing.dagitimToplamAlis += dagitimToplamAlis;
+            existing.plateCount += Number(project.plateCount || 0);
+            existing.details = [
+                ...(existing.details || []),
+                ...(Array.isArray(project.details) ? project.details : []),
+            ];
+        });
+
+        return Array.from(grouped.values()).map((project) => {
+            const purchaseTotalWithDagilim =
+                Number(project.purchaseTotal || 0) + Number(project.dagitimToplamAlis || 0);
+
+            const profitWithDagilim =
+                Number(project.salesTotal || 0) - purchaseTotalWithDagilim;
 
             return {
                 ...project,
-                key:
-                    project.id ??
-                    project.projectId ??
-                    project.reel_proje_adi ??
-                    project.projectName ??
-                    `project-${index}`,
-                dagitimToplamAlis,
-                purchaseTotalWithDagilim: yeniAlis,
-                profitWithDagilim: yeniKar,
+                purchaseTotalWithDagilim,
+                profitWithDagilim,
             };
         });
     }, [projects, filteredDagilimRows]);
-
     const filtered = useMemo(() => {
         const s = [...enrichedProjects].filter((p) =>
             norm(p.projectName).includes(norm(search))
@@ -1097,7 +1129,7 @@ export default function ProjeTablosu({
     }, [enrichedProjects, search, sort]);
 
     const totals = useMemo(() => {
-        const projectTotals = filtered.reduce(
+        const projectTotals = enrichedProjects.reduce(
             (a, p) => ({
                 p: a.p + Number(p.purchaseTotalWithDagilim || 0),
                 s: a.s + Number(p.salesTotal || 0),
@@ -1112,10 +1144,27 @@ export default function ProjeTablosu({
             ...projectTotals,
             p: projectTotals.p,
         };
-    }, [filtered]);
+    }, [enrichedProjects]);
 
-    const totalProfit = totals.s - totals.p;
-    const totalProfitability = totals.s > 0 ? totalProfit / totals.s : 0;
+    const footerTotals = useMemo(() => {
+        if (overallTotals) {
+            return {
+                s: Number(overallTotals.sales || 0),
+                p: Number(overallTotals.purchase || 0),
+                plates: Number(overallTotals.plateCount || 0),
+            };
+        }
+
+        return {
+            s: Number(totals.s || 0),
+            p: Number(totals.p || 0),
+            plates: Number(totals.plates || 0),
+        };
+    }, [overallTotals, totals]);
+
+    const totalProfit = footerTotals.s - footerTotals.p;
+    const totalProfitability = footerTotals.s > 0 ? totalProfit / footerTotals.s : 0;
+
 
     const getProfitability = (project) => {
         if (!project.salesTotal) return 0;
@@ -1405,10 +1454,24 @@ export default function ProjeTablosu({
             }
 
             const monthlyDagilimRows = filteredDagilimRows
-                .filter(
-                    (row) =>
-                        norm(row.reel_proje_adi || row.proje_adi) === norm(project.projectName)
-                )
+                .filter((row) => {
+                    const rowProjectName = String(row.reel_proje_adi || row.proje_adi || "")
+                        .trim()
+                        .toLocaleLowerCase("tr-TR");
+
+                    const currentProjectName = String(project.projectName || "")
+                        .trim()
+                        .toLocaleLowerCase("tr-TR");
+
+                    const currentRealProjectName = String(project.projeMaster?.reel_proje_adi || "")
+                        .trim()
+                        .toLocaleLowerCase("tr-TR");
+
+                    return (
+                        rowProjectName === currentProjectName ||
+                        rowProjectName === currentRealProjectName
+                    );
+                })
                 .map((row) => ({
                     kullanici_adi: row.kullanici_adi || "-",
                     hesap_adi: row.hesap_adi || "-",
@@ -1417,7 +1480,6 @@ export default function ProjeTablosu({
                     donem_ay: row.donem_ay || "",
                 }))
                 .sort((a, b) => b.tutar - a.tutar);
-
             rowIndex += 1;
             addSectionTitle(ws, rowIndex, "GENEL DAĞILIM MALİYETLERİ");
             rowIndex += 1;
@@ -1676,13 +1738,21 @@ export default function ProjeTablosu({
                                                             details={project.details}
                                                             onPlateClick={setSelPlate}
                                                             projeDagilimRows={filteredDagilimRows.filter((row) => {
-                                                                const rowProjectName = norm(row.reel_proje_adi || row.proje_adi || "");
-                                                                const currentProjectName = norm(project.projectName || "");
-                                                                const currentRealProjectName = norm(project.reel_proje_adi || "");
+                                                                const rowProjectName = String(row.reel_proje_adi || row.proje_adi || "")
+                                                                    .trim()
+                                                                    .toLocaleLowerCase("tr-TR");
+
+                                                                const currentProjectName = String(project.projectName || "")
+                                                                    .trim()
+                                                                    .toLocaleLowerCase("tr-TR");
+
+                                                                const currentRealProjectName = String(project.projeMaster?.reel_proje_adi || "")
+                                                                    .trim()
+                                                                    .toLocaleLowerCase("tr-TR");
 
                                                                 return (
                                                                     rowProjectName === currentProjectName ||
-                                                                    (currentRealProjectName && rowProjectName === currentRealProjectName)
+                                                                    rowProjectName === currentRealProjectName
                                                                 );
                                                             })}
                                                             selectedMonth={selectedMonth}
@@ -1709,15 +1779,15 @@ export default function ProjeTablosu({
                                 </td>
 
                                 <td className="pt-center pt-col-plate">
-                                    <span className="pt-pill pt-pill-neutral">{totals.plates}</span>
+                                    <span className="pt-pill pt-pill-neutral">{footerTotals.plates}</span>
                                 </td>
 
                                 <td className="pt-right pt-money pt-col-money">
-                                    {fmt(totals.s, true)}
+                                    {fmt(footerTotals.s, true)}
                                 </td>
 
                                 <td className="pt-right pt-money pt-col-money">
-                                    {fmt(totals.p, true)}
+                                    {fmt(footerTotals.p, true)}
                                 </td>
 
                                 <td className="pt-right pt-money pt-col-money">

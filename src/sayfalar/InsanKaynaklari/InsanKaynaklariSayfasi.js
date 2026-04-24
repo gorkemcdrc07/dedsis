@@ -206,8 +206,7 @@ function detectTutarColumn(row) {
         "Isveren Maliyeti",
         "Toplam İşveren Maliyeti",
         "İşveren Toplam",
-        "İşveren maliyeti"
-
+        "İşveren maliyeti",
     ];
 
     const found = possibleNames.find(
@@ -217,13 +216,15 @@ function detectTutarColumn(row) {
 
     const keys = Object.keys(row).filter((k) => !k.startsWith("_"));
 
-    return keys.find((key) => {
-        const normalized = key
-            .toLocaleUpperCase("tr-TR")
-            .replace(/İ/g, "I");
+    return (
+        keys.find((key) => {
+            const normalized = key
+                .toLocaleUpperCase("tr-TR")
+                .replace(/İ/g, "I");
 
-        return normalized.includes("ISVEREN") && normalized.includes("MALIYET");
-    }) || null;
+            return normalized.includes("ISVEREN") && normalized.includes("MALIYET");
+        }) || null
+    );
 }
 
 const UploadIcon = () => (
@@ -339,20 +340,50 @@ export default function InsanKaynaklariSayfasi() {
         const ay = Number(selectedMonth);
         const yil = Number(selectedYear);
 
-        const { data, error: projeError } = await supabase
+        const { data: projeRows, error: projeError } = await supabase
             .from("proje_dagilim_yeni")
             .select("kullanici_adi, hesap_adi, alt_kalem, tutar, donem_ay, donem_yil, proje_id")
             .eq("donem_ay", ay)
             .eq("donem_yil", yil);
 
         if (projeError) {
-            console.error(projeError);
+            console.error("Proje dağılım verisi alınamadı:", projeError);
             return;
         }
 
-        setProjeData(data || []);
+        const { data: muhasebeRows, error: muhasebeError } = await supabase
+            .from("muhasebe")
+            .select("kullanici_id, hesap_adi, tutar, donem_ayi, proje_id, aciklama")
+            .eq("donem_ayi", selectedMonth);
+
+        if (muhasebeError) {
+            console.error("Muhasebe verisi alınamadı:", muhasebeError);
+        }
+
+        const userIdToNameMap = new Map(
+            (users || []).map((user) => [Number(user.id), user.kullanici_adi])
+        );
+
+        const normalizedMuhasebeRows = (muhasebeRows || []).map((item) => ({
+            kullanici_adi:
+                userIdToNameMap.get(Number(item.kullanici_id)) || "MUHASEBE",
+            hesap_adi: item.hesap_adi || "MUHASEBE",
+            alt_kalem: item.aciklama || "Muhasebe",
+            tutar: Number(item.tutar || 0),
+            donem_ay: item.donem_ayi,
+            donem_yil: yil,
+            proje_id: item.proje_id ?? null,
+            kullanici_id: item.kullanici_id ?? null,
+        }));
+
+        const mergedData = [
+            ...(projeRows || []),
+            ...normalizedMuhasebeRows,
+        ];
+
+        setProjeData(mergedData);
         setExpandedRows({});
-    }, [selectedMonth, selectedYear]);
+    }, [selectedMonth, selectedYear, users]);
 
     const loadFixedCosts = useCallback(async () => {
         const ay = Number(selectedMonth);
@@ -444,7 +475,6 @@ export default function InsanKaynaklariSayfasi() {
         [handleFile]
     );
 
-
     const userMap = useMemo(() => {
         const map = new Map();
         users.forEach((user) => map.set(normalizeName(user.kullanici_adi), user));
@@ -526,8 +556,6 @@ export default function InsanKaynaklariSayfasi() {
         const groups = {};
 
         projeData.forEach((item) => {
-            // Sadece sabit maliyetin proje bazlı dağıtılmış satırlarını
-            // üst özetten çıkar. İK ve diğerlerini bozma.
             if (item.hesap_adi === "SABİT MALİYET" && item.proje_id !== null) {
                 return;
             }
@@ -547,6 +575,14 @@ export default function InsanKaynaklariSayfasi() {
 
         return groups;
     }, [projeData]);
+
+    const projeGenelToplam = useMemo(() => {
+        return Object.values(groupedProje).reduce(
+            (sum, item) => sum + Number(item.toplam || 0),
+            0
+        );
+    }, [groupedProje]);
+
     const fixedCostChanged = useMemo(() => {
         if (!fixedCostSummary) {
             return Object.values(fixedCostForm).some(
@@ -610,7 +646,6 @@ export default function InsanKaynaklariSayfasi() {
         try {
             setSaving(true);
 
-            // önce eski proje bazlı İK dağıtımlarını temizle
             const { error: deleteProjectRowsError } = await supabase
                 .from("ik")
                 .delete()
@@ -624,8 +659,6 @@ export default function InsanKaynaklariSayfasi() {
                 return;
             }
 
-            // ham kullanıcı kayıtlarını güncelle / ekle
-            // önce aynı dönemin ham İK kayıtlarını temizle
             const { error: deleteBaseRowsError } = await supabase
                 .from("ik")
                 .delete()
@@ -640,13 +673,12 @@ export default function InsanKaynaklariSayfasi() {
                 return;
             }
 
-            // ham kullanıcı kayıtlarını yeniden ekle
             const { error: insertBaseRowsError } = await supabase
                 .from("ik")
                 .insert(
                     preparedRows.map((row) => ({
                         ...row,
-                        donem_yil: null, // mevcut view yapınla uyumlu kalsın
+                        donem_yil: null,
                     }))
                 );
 
@@ -655,9 +687,8 @@ export default function InsanKaynaklariSayfasi() {
                 showModal("error", "Kayıt Başarısız", "İK kayıtları kaydedilemedi.");
                 return;
             }
-            // proje bazlı dağıtımı oluştur
-            await distributeIkRowsToProjects(preparedRows);
 
+            await distributeIkRowsToProjects(preparedRows);
             await loadProjeDagilim();
 
             const label =
@@ -675,11 +706,11 @@ export default function InsanKaynaklariSayfasi() {
             setSaving(false);
         }
     };
+
     const distributeFixedCostsToProjects = async (costRows) => {
         const ay = Number(selectedMonth);
         const yil = Number(selectedYear);
 
-        // 🔥 EKLENDİ: eski proje dağıtımlarını temizle
         await supabase
             .from("sabit_maliyetler")
             .delete()
@@ -787,15 +818,9 @@ export default function InsanKaynaklariSayfasi() {
         }
 
         if (payload.length > 0) {
-            console.log("IK dağıtım payload:", payload);
-
-            const { data, error: insertError } = await supabase
+            const { error: insertError } = await supabase
                 .from("ik")
-                .insert(payload)
-                .select();
-
-            console.log("IK insert sonucu:", data);
-            console.log("IK insert hata:", insertError);
+                .insert(payload);
 
             if (insertError) {
                 console.error("IK INSERT HATASI:", insertError);
@@ -898,6 +923,7 @@ export default function InsanKaynaklariSayfasi() {
                 asil_tutar: null,
             },
         ];
+
         try {
             setFixedSaving(true);
 
@@ -906,6 +932,7 @@ export default function InsanKaynaklariSayfasi() {
                 .upsert(rows, {
                     onConflict: "kullanici_id,donem_yil,donem_ay,gider_tipi,proje_id",
                 });
+
             if (upsertError) {
                 console.error(upsertError);
                 showModal("error", "Kayıt Başarısız", "Sabit maliyetler kaydedilemedi.");
@@ -1096,12 +1123,22 @@ export default function InsanKaynaklariSayfasi() {
                                             </thead>
                                             <tbody>
                                                 <tr>
-                                                    <td>{excelData.summaryRow[detectAdSoyadColumn(excelData.summaryRow)] || ""}</td>
+                                                    <td>
+                                                        {excelData.summaryRow[
+                                                            detectAdSoyadColumn(excelData.summaryRow)
+                                                        ] || ""}
+                                                    </td>
                                                     <td>
                                                         {(() => {
-                                                            const tutarColumn = detectTutarColumn(excelData.summaryRow);
+                                                            const tutarColumn = detectTutarColumn(
+                                                                excelData.summaryRow
+                                                            );
                                                             return tutarColumn
-                                                                ? formatMoney(toNumberTR(excelData.summaryRow[tutarColumn]))
+                                                                ? formatMoney(
+                                                                    toNumberTR(
+                                                                        excelData.summaryRow[tutarColumn]
+                                                                    )
+                                                                )
                                                                 : "";
                                                         })()}
                                                     </td>
@@ -1132,30 +1169,39 @@ export default function InsanKaynaklariSayfasi() {
                                 </thead>
                                 <tbody>
                                     {Object.keys(groupedProje).length > 0 ? (
-                                        Object.entries(groupedProje).map(([key, value]) => (
-                                            <React.Fragment key={key}>
-                                                <tr
-                                                    onClick={() => toggleRow(key)}
-                                                    style={{ cursor: "pointer", fontWeight: 600 }}
-                                                >
-                                                    <td>
-                                                        {expandedRows[key] ? "▼" : "▶"} {key}
-                                                    </td>
-                                                    <td>{formatMoney(value.toplam)}</td>
-                                                </tr>
+                                        <>
+                                            {Object.entries(groupedProje).map(([key, value]) => (
+                                                <React.Fragment key={key}>
+                                                    <tr
+                                                        onClick={() => toggleRow(key)}
+                                                        style={{ cursor: "pointer", fontWeight: 600 }}
+                                                    >
+                                                        <td>
+                                                            {expandedRows[key] ? "▼" : "▶"} {key}
+                                                        </td>
+                                                        <td>{formatMoney(value.toplam)}</td>
+                                                    </tr>
 
-                                                {expandedRows[key] &&
-                                                    value.detaylar.map((item, i) => (
-                                                        <tr key={`${key}-${i}`}>
-                                                            <td style={{ paddingLeft: "30px" }}>
-                                                                {item.kullanici_adi || "—"} -{" "}
-                                                                {item.hesap_adi || item.alt_kalem || "Detay"}
-                                                            </td>
-                                                            <td>{formatMoney(item.tutar)}</td>
-                                                        </tr>
-                                                    ))}
-                                            </React.Fragment>
-                                        ))
+                                                    {expandedRows[key] &&
+                                                        value.detaylar.map((item, i) => (
+                                                            <tr key={`${key}-${i}`}>
+                                                                <td style={{ paddingLeft: "30px" }}>
+                                                                    {item.kullanici_adi || "—"} -{" "}
+                                                                    {item.hesap_adi ||
+                                                                        item.alt_kalem ||
+                                                                        "Detay"}
+                                                                </td>
+                                                                <td>{formatMoney(item.tutar)}</td>
+                                                            </tr>
+                                                        ))}
+                                                </React.Fragment>
+                                            ))}
+
+                                            <tr className="ik-genel">
+                                                <td>Genel Toplam</td>
+                                                <td>{formatMoney(projeGenelToplam)}</td>
+                                            </tr>
+                                        </>
                                     ) : (
                                         <tr>
                                             <td colSpan={2} className="ik-bos-veri">

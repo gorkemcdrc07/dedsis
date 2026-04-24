@@ -49,11 +49,14 @@ export default function AnaPanelSayfasi() {
     const [tableView] = useState(1);
     const [elapsed, setElapsed] = useState(0);
 
-
-
     const selectedMonth = useMemo(() => {
         if (!startDate) return "";
         return String(new Date(startDate).getMonth() + 1).padStart(2, "0");
+    }, [startDate]);
+
+    const selectedYear = useMemo(() => {
+        if (!startDate) return "";
+        return new Date(startDate).getFullYear();
     }, [startDate]);
 
     useEffect(() => {
@@ -151,12 +154,14 @@ export default function AnaPanelSayfasi() {
                 supabase
                     .from("ik")
                     .select("*")
-                    .eq("donem_yil", new Date(startDate).getFullYear())
+                    .eq("donem_yil", Number(selectedYear))
                     .eq("donem_ayi", selectedMonth),
             ]);
 
             console.log("startDate", startDate);
+            console.log("endDate", endDate);
             console.log("selectedMonth", selectedMonth);
+            console.log("selectedYear", selectedYear);
             console.log("muhasebeData", muhasebeData);
             console.log("ikData", ikData);
             console.log("muhasebeError", muhasebeError);
@@ -201,7 +206,6 @@ export default function AnaPanelSayfasi() {
             setLoading(false);
         }
     };
-
     const projects = useMemo(() => {
         const apiProjects = aggregateByProject(rows);
 
@@ -222,6 +226,62 @@ export default function AnaPanelSayfasi() {
             .filter((project) => !!project.projeMaster);
     }, [rows, projectMasters]);
 
+
+    const validProjectIds = useMemo(() => {
+        return new Set(
+            (projects || [])
+                .map((p) => Number(p.projeMaster?.id))
+                .filter((id) => Number.isFinite(id))
+        );
+    }, [projects]);
+
+    const validDagilimRows = useMemo(() => {
+        return (projeDagilimRows || []).filter((row) =>
+            validProjectIds.has(Number(row.proje_id))
+        );
+    }, [projeDagilimRows, validProjectIds]);
+
+    const missingDagilimWarning = useMemo(() => {
+        const grouped = new Map();
+
+        let ikTotal = 0;
+        let muhasebeTotal = 0;
+        let sabitTotal = 0;
+
+        (projeDagilimRows || []).forEach((row) => {
+            const projeId = Number(row.proje_id);
+
+            if (validProjectIds.has(projeId)) return;
+
+            const name = String(row.reel_proje_adi || row.proje_adi || "Dağıtılmamış Gider").trim();
+            const tutar = Number(row.tutar || 0);
+
+            const current = grouped.get(name) || 0;
+            grouped.set(name, current + tutar);
+
+            const kaynak = String(row.kaynak_tablo || "").toLowerCase();
+
+            if (kaynak === "ik") ikTotal += tutar;
+            else if (kaynak === "muhasebe") muhasebeTotal += tutar;
+            else if (kaynak === "sabit_maliyetler") sabitTotal += tutar;
+        });
+
+        const items = Array.from(grouped.entries()).map(([name, total]) => ({
+            name,
+            total,
+        }));
+
+        const total = items.reduce((sum, item) => sum + item.total, 0);
+
+        return {
+            items,
+            total,
+            count: items.length,
+            ikTotal,
+            muhasebeTotal,
+            sabitTotal,
+        };
+    }, [projeDagilimRows, validProjectIds]);
     const totals = useMemo(() => {
         const apiPurchase = rows.reduce(
             (a, r) => a + Number(r.PurchaseInvoiceIncome || 0),
@@ -233,15 +293,7 @@ export default function AnaPanelSayfasi() {
             0
         );
 
-        const visibleProjectIds = new Set(
-            projects
-                .map((p) => Number(p.projeMaster?.id))
-                .filter((id) => Number.isFinite(id))
-        );
-
-        const dagitimPurchase = projeDagilimRows.reduce((sum, row) => {
-            const projeId = Number(row.proje_id);
-            if (!visibleProjectIds.has(projeId)) return sum;
+        const dagitimPurchase = validDagilimRows.reduce((sum, row) => {
             return sum + Number(row.tutar || 0);
         }, 0);
 
@@ -274,7 +326,7 @@ export default function AnaPanelSayfasi() {
             toplamIk,
             toplamMaliyet: toplamMuhasebe + toplamIk,
         };
-    }, [rows, projeDagilimRows, muhasebeRows, ikRows, projects]);
+    }, [rows, validDagilimRows, muhasebeRows, ikRows]);
 
     const handleDagilimRowsChange = async (updatedRows, meta) => {
         const previousDagilimRows = projeDagilimRows;
@@ -504,6 +556,42 @@ export default function AnaPanelSayfasi() {
 
             {error ? <div className="err">{error}</div> : null}
 
+            {missingDagilimWarning.total > 0 && (
+                <div
+                    className="err"
+                    style={{
+                        background: "#fff3cd",
+                        color: "#856404",
+                        border: "1px solid #ffe69c",
+                    }}
+                >
+                    <strong>
+                        ⚠️ REEL’de olmayan projelere maliyet eklenmiş
+                    </strong>
+
+                    <div style={{ marginTop: 6 }}>
+                        İK: {fmt(missingDagilimWarning.ikTotal, true)}
+                    </div>
+                    <div>
+                        Muhasebe: {fmt(missingDagilimWarning.muhasebeTotal, true)}
+                    </div>
+                    <div>
+                        Diğer Giderler: {fmt(missingDagilimWarning.sabitTotal, true)}
+                    </div>
+
+                    <div style={{ marginTop: 6 }}>
+                        <strong>Toplam: {fmt(missingDagilimWarning.total, true)}</strong>
+                    </div>
+
+                    <div style={{ marginTop: 8 }}>
+                        {missingDagilimWarning.items.map((item) => (
+                            <div key={item.name}>
+                                {item.name} — {fmt(item.total, true)}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
             <div className="body">
                 <div className="content">
                     <div className="stats-bar">
@@ -582,14 +670,15 @@ export default function AnaPanelSayfasi() {
                             {tab === "projects" && (
                                 <>
                                     {tableView === 1 ? (
-                                        <ProjeTablosu
-                                            projects={projects}
-                                            allRows={rows}
-                                            projeDagilimRows={projeDagilimRows}
-                                            selectedMonth={selectedMonth}
-                                            onDagilimRowsChange={handleDagilimRowsChange}
-                                        />
-                                    ) : (
+                                                <ProjeTablosu
+                                                    projects={projects}
+                                                    allRows={rows}
+                                                    projeDagilimRows={validDagilimRows}
+                                                    selectedMonth={selectedMonth}
+                                                    onDagilimRowsChange={handleDagilimRowsChange}
+                                                    overallTotals={totals}
+                                                />
+                                            ) : (
                                         <ProjeTablosu2
                                             projects={projects}
                                             allRows={rows}
