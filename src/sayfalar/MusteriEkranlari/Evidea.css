@@ -1,0 +1,330 @@
+﻿.evidea-page {
+    width: 100%;
+    min-height: 100vh;
+    padding: 28px;
+    background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #eef3ff 100%);
+    box-sizing: border-box;
+}
+
+.evidea-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+    .evidea-header h1 {
+        margin: 0;
+        font-size: 34px;
+        font-weight: 850;
+        letter-spacing: -0.8px;
+        color: #0f172a;
+    }
+
+    .evidea-header p {
+        margin: 8px 0 0;
+        font-size: 15px;
+        color: #64748b;
+    }
+
+.evidea-add-button,
+.evidea-save-button {
+    border: none;
+    color: #fff;
+    padding: 14px 22px;
+    border-radius: 16px;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: 0.22s ease;
+    white-space: nowrap;
+}
+
+.evidea-add-button {
+    background: linear-gradient(135deg, #2563eb, #4f46e5);
+    box-shadow: 0 16px 35px rgba(37, 99, 235, 0.28);
+}
+
+.evidea-save-button {
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    box-shadow: 0 16px 35px rgba(22, 163, 74, 0.25);
+}
+
+    .evidea-add-button:hover,
+    .evidea-save-button:hover:not(:disabled) {
+        transform: translateY(-2px);
+    }
+
+    .evidea-save-button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+    }
+
+.evidea-card {
+    width: 100%;
+    max-width: none;
+    padding: 16px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    box-shadow: 0 22px 55px rgba(15, 23, 42, 0.08);
+    backdrop-filter: blur(14px);
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.evidea-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 12px;
+    border-radius: 18px;
+}
+
+.evidea-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+    .evidea-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: linear-gradient(180deg, #f8fafc, #eef2f7);
+        color: #334155;
+        padding: 15px 12px;
+        font-size: 11.5px;
+        font-weight: 850;
+        text-transform: uppercase;
+        letter-spacing: 0.35px;
+        white-space: nowrap;
+        border-bottom: 1px solid #dbe4ef;
+    }
+
+        .evidea-table thead th:first-child {
+            border-top-left-radius: 16px;
+        }
+
+        .evidea-table thead th:last-child {
+            border-top-right-radius: 16px;
+        }
+
+    .evidea-table tbody td {
+        padding: 11px 10px;
+        background: #ffffff;
+        border-bottom: 1px solid #edf2f7;
+    }
+
+    .evidea-table tbody tr {
+        transition: 0.18s ease;
+    }
+
+        .evidea-table tbody tr:hover td {
+            background: #f8fbff;
+        }
+
+.evidea-row-number {
+    min-width: 44px;
+    text-align: center;
+    font-weight: 800;
+    color: #64748b;
+}
+
+.evidea-table input,
+.evidea-table select {
+    width: 100%;
+    min-width: 138px;
+    height: 42px;
+    border: 1px solid #d6deea;
+    border-radius: 13px;
+    padding: 0 12px;
+    font-size: 13px;
+    font-weight: 600;
+    background: #ffffff;
+    color: #0f172a;
+    outline: none;
+    box-sizing: border-box;
+    transition: 0.2s ease;
+}
+
+.evidea-table select {
+    cursor: pointer;
+    min-width: 165px;
+}
+
+.evidea-table input::placeholder {
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.evidea-table input:hover,
+.evidea-table select:hover {
+    border-color: #93c5fd;
+}
+
+.evidea-table input:focus,
+.evidea-table select:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+}
+
+.evidea-delete-button {
+    border: none;
+    background: #fff1f2;
+    color: #be123c;
+    padding: 11px 15px;
+    border-radius: 13px;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+    .evidea-delete-button:hover:not(:disabled) {
+        background: #ffe4e6;
+        transform: translateY(-1px);
+    }
+
+    .evidea-delete-button:disabled {
+        opacity: 0.42;
+        cursor: not-allowed;
+    }
+
+.evidea-table-wrapper::-webkit-scrollbar {
+    height: 9px;
+}
+
+.evidea-table-wrapper::-webkit-scrollbar-track {
+    background: #e2e8f0;
+    border-radius: 999px;
+}
+
+.evidea-table-wrapper::-webkit-scrollbar-thumb {
+    background: linear-gradient(90deg, #94a3b8, #64748b);
+    border-radius: 999px;
+}
+
+/* DARK MODE */
+
+[data-theme="dark"] .evidea-page {
+    background: radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 34%), linear-gradient(180deg, #020617 0%, #0f172a 100%);
+}
+
+[data-theme="dark"] .evidea-header h1 {
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .evidea-header p {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .evidea-card {
+    background: rgba(15, 23, 42, 0.86);
+    border-color: rgba(51, 65, 85, 0.9);
+    box-shadow: 0 22px 55px rgba(0, 0, 0, 0.28);
+}
+
+[data-theme="dark"] .evidea-table thead th {
+    background: linear-gradient(180deg, #1e293b, #172033);
+    color: #e2e8f0;
+    border-bottom-color: #334155;
+}
+
+[data-theme="dark"] .evidea-table tbody td {
+    background: #0f172a;
+    border-bottom-color: #1e293b;
+}
+
+[data-theme="dark"] .evidea-table tbody tr:hover td {
+    background: #172033;
+}
+
+[data-theme="dark"] .evidea-row-number {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .evidea-table input,
+[data-theme="dark"] .evidea-table select {
+    background: #020617;
+    border-color: #334155;
+    color: #f8fafc;
+}
+
+    [data-theme="dark"] .evidea-table input::placeholder {
+        color: #64748b;
+    }
+
+    [data-theme="dark"] .evidea-table input:hover,
+    [data-theme="dark"] .evidea-table select:hover {
+        border-color: #3b82f6;
+    }
+
+[data-theme="dark"] .evidea-table-wrapper::-webkit-scrollbar-track {
+    background: #1e293b;
+}
+
+[data-theme="dark"] .evidea-table-wrapper::-webkit-scrollbar-thumb {
+    background: linear-gradient(90deg, #475569, #64748b);
+}
+
+.evidea-actions {
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.evidea-date-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+    .evidea-date-filter span {
+        font-size: 12px;
+        font-weight: 700;
+        color: #475569;
+        padding-left: 2px;
+    }
+
+    .evidea-date-filter input {
+        width: 180px;
+        height: 48px;
+        border: 1px solid #d6deea;
+        border-radius: 15px;
+        padding: 0 14px;
+        font-size: 14px;
+        font-weight: 700;
+        background: rgba(255, 255, 255, 0.95);
+        color: #0f172a;
+        outline: none;
+        box-sizing: border-box;
+        transition: 0.2s ease;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+    }
+
+        .evidea-date-filter input:hover {
+            border-color: #93c5fd;
+        }
+
+        .evidea-date-filter input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+        }
+
+[data-theme="dark"] .evidea-date-filter span {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .evidea-date-filter input {
+    background: rgba(2, 6, 23, 0.92);
+    border-color: #334155;
+    color: #f8fafc;
+}
+
+    [data-theme="dark"] .evidea-date-filter input:hover {
+        border-color: #3b82f6;
+    }

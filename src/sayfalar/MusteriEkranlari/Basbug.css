@@ -1,0 +1,300 @@
+﻿.basbug-page {
+    width: 100%;
+    min-height: 100vh;
+    padding: 28px;
+    background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #eef3ff 100%);
+    box-sizing: border-box;
+}
+
+.basbug-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+    .basbug-header h1 {
+        margin: 0;
+        font-size: 34px;
+        font-weight: 850;
+        letter-spacing: -0.8px;
+        color: #0f172a;
+    }
+
+    .basbug-header p {
+        margin: 8px 0 0;
+        font-size: 15px;
+        color: #64748b;
+    }
+
+.basbug-add-button,
+.basbug-save-button {
+    border: none;
+    color: #fff;
+    padding: 14px 22px;
+    border-radius: 16px;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: 0.22s ease;
+    white-space: nowrap;
+}
+
+.basbug-add-button {
+    background: linear-gradient(135deg, #2563eb, #4f46e5);
+    box-shadow: 0 16px 35px rgba(37, 99, 235, 0.28);
+}
+
+.basbug-save-button {
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    box-shadow: 0 16px 35px rgba(22, 163, 74, 0.25);
+}
+
+    .basbug-add-button:hover,
+    .basbug-save-button:hover:not(:disabled) {
+        transform: translateY(-2px);
+    }
+
+    .basbug-save-button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+    }
+
+.basbug-card {
+    width: 100%;
+    padding: 16px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    box-shadow: 0 22px 55px rgba(15, 23, 42, 0.08);
+    backdrop-filter: blur(14px);
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.basbug-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 12px;
+    border-radius: 18px;
+}
+
+.basbug-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+    .basbug-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: linear-gradient(180deg, #f8fafc, #eef2f7);
+        color: #334155;
+        padding: 15px 12px;
+        font-size: 11.5px;
+        font-weight: 850;
+        text-transform: uppercase;
+        letter-spacing: 0.35px;
+        white-space: nowrap;
+        border-bottom: 1px solid #dbe4ef;
+    }
+
+    .basbug-table tbody td {
+        padding: 11px 10px;
+        background: #ffffff;
+        border-bottom: 1px solid #edf2f7;
+    }
+
+    .basbug-table tbody tr:hover td {
+        background: #f8fbff;
+    }
+
+.basbug-row-number {
+    min-width: 44px;
+    text-align: center;
+    font-weight: 800;
+    color: #64748b;
+}
+
+.basbug-table input,
+.basbug-table select {
+    width: 100%;
+    min-width: 138px;
+    height: 42px;
+    border: 1px solid #d6deea;
+    border-radius: 13px;
+    padding: 0 12px;
+    font-size: 13px;
+    font-weight: 600;
+    background: #ffffff;
+    color: #0f172a;
+    outline: none;
+    box-sizing: border-box;
+    transition: 0.2s ease;
+}
+
+.basbug-table select {
+    cursor: pointer;
+    min-width: 165px;
+}
+
+.basbug-table input::placeholder {
+    color: #94a3b8;
+}
+
+.basbug-table input:hover,
+.basbug-table select:hover {
+    border-color: #93c5fd;
+}
+
+.basbug-table input:focus,
+.basbug-table select:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+}
+
+.basbug-delete-button {
+    border: none;
+    background: #fff1f2;
+    color: #be123c;
+    padding: 11px 15px;
+    border-radius: 13px;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+    .basbug-delete-button:hover:not(:disabled) {
+        background: #ffe4e6;
+    }
+
+    .basbug-delete-button:disabled {
+        opacity: 0.42;
+        cursor: not-allowed;
+    }
+
+.basbug-table-wrapper::-webkit-scrollbar {
+    height: 9px;
+}
+
+.basbug-table-wrapper::-webkit-scrollbar-track {
+    background: #e2e8f0;
+    border-radius: 999px;
+}
+
+.basbug-table-wrapper::-webkit-scrollbar-thumb {
+    background: linear-gradient(90deg, #94a3b8, #64748b);
+    border-radius: 999px;
+}
+
+[data-theme="dark"] .basbug-page {
+    background: radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 34%), linear-gradient(180deg, #020617 0%, #0f172a 100%);
+}
+
+[data-theme="dark"] .basbug-header h1 {
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .basbug-header p {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .basbug-card {
+    background: rgba(15, 23, 42, 0.86);
+    border-color: rgba(51, 65, 85, 0.9);
+}
+
+[data-theme="dark"] .basbug-table thead th {
+    background: linear-gradient(180deg, #1e293b, #172033);
+    color: #e2e8f0;
+    border-bottom-color: #334155;
+}
+
+[data-theme="dark"] .basbug-table tbody td {
+    background: #0f172a;
+    border-bottom-color: #1e293b;
+}
+
+[data-theme="dark"] .basbug-table tbody tr:hover td {
+    background: #172033;
+}
+
+[data-theme="dark"] .basbug-row-number {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .basbug-table input,
+[data-theme="dark"] .basbug-table select {
+    background: #020617;
+    border-color: #334155;
+    color: #f8fafc;
+}
+
+    [data-theme="dark"] .basbug-table input::placeholder {
+        color: #64748b;
+    }
+
+
+.basbug-actions {
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.basbug-date-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+    .basbug-date-filter span {
+        font-size: 12px;
+        font-weight: 700;
+        color: #475569;
+        padding-left: 2px;
+    }
+
+    .basbug-date-filter input {
+        width: 180px;
+        height: 48px;
+        border: 1px solid #d6deea;
+        border-radius: 15px;
+        padding: 0 14px;
+        font-size: 14px;
+        font-weight: 700;
+        background: rgba(255, 255, 255, 0.95);
+        color: #0f172a;
+        outline: none;
+        box-sizing: border-box;
+        transition: 0.2s ease;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+    }
+
+        .basbug-date-filter input:hover {
+            border-color: #93c5fd;
+        }
+
+        .basbug-date-filter input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+        }
+
+[data-theme="dark"] .basbug-date-filter span {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .basbug-date-filter input {
+    background: rgba(2, 6, 23, 0.92);
+    border-color: #334155;
+    color: #f8fafc;
+}
+
+    [data-theme="dark"] .basbug-date-filter input:hover {
+        border-color: #3b82f6;
+    }

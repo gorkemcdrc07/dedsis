@@ -10,6 +10,7 @@ const ParticleCanvas = () => {
     useEffect(() => {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext("2d");
+
         let animId;
         let W, H;
 
@@ -19,9 +20,11 @@ const ParticleCanvas = () => {
         };
 
         resize();
+
         window.addEventListener("resize", resize);
 
         const count = 55;
+
         const dots = Array.from({ length: count }, () => ({
             x: Math.random() * window.innerWidth,
             y: Math.random() * window.innerHeight,
@@ -146,6 +149,7 @@ const Login = ({ setIsAuthenticated }) => {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [status, setStatus] = useState("idle");
+
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
@@ -165,39 +169,74 @@ const Login = ({ setIsAuthenticated }) => {
 
             if (error) {
                 console.error("Supabase login hatası:", error);
+
                 setStatus("error");
-                setTimeout(() => setStatus("idle"), 3000);
+
+                setTimeout(() => {
+                    setStatus("idle");
+                }, 3000);
+
                 return;
             }
 
             if (data) {
                 localStorage.setItem("token", "giris-basarili");
                 localStorage.setItem("user", JSON.stringify(data));
+
                 setIsAuthenticated(true);
                 setStatus("success");
 
+                const kullaniciText =
+                    `${data.kullanici_adi || ""} ${data.kullanici || ""}`
+                        .toLowerCase()
+                        .trim();
+
+                let yonlendirme = "/ana-panel";
+
+                if (kullaniciText.includes("evidea")) {
+                    yonlendirme = "/evidea";
+                }
+
+                if (
+                    kullaniciText.includes("basbug") ||
+                    kullaniciText.includes("başbug") ||
+                    kullaniciText.includes("başbuğ")
+                ) {
+                    yonlendirme = "/basbug";
+                }
+
                 setTimeout(() => {
-                    navigate("/ana-panel", { replace: true });
+                    navigate(yonlendirme, { replace: true });
                 }, 1200);
             } else {
                 setStatus("error");
-                setTimeout(() => setStatus("idle"), 3000);
+
+                setTimeout(() => {
+                    setStatus("idle");
+                }, 3000);
             }
         } catch (err) {
             console.error("Beklenmeyen hata:", err);
+
             setStatus("error");
-            setTimeout(() => setStatus("idle"), 3000);
+
+            setTimeout(() => {
+                setStatus("idle");
+            }, 3000);
         }
     };
 
     return (
         <div className="ls">
             <ParticleCanvas />
+
             <div className="ls__ring ls__ring--1" />
             <div className="ls__ring ls__ring--2" />
             <div className="ls__ring ls__ring--3" />
+
             <div className="ls__blob ls__blob--1" />
             <div className="ls__blob ls__blob--2" />
+
             <div className="ls__scan" />
 
             <div className="ls__box">
@@ -206,8 +245,15 @@ const Login = ({ setIsAuthenticated }) => {
                         <div className="ls__success-ring">
                             <IcoCheck />
                         </div>
-                        <p className="ls__success-title">ERİŞİM ONAYLANDI</p>
-                        <p className="ls__success-sub">Panele yönlendiriliyorsunuz</p>
+
+                        <p className="ls__success-title">
+                            ERİŞİM ONAYLANDI
+                        </p>
+
+                        <p className="ls__success-sub">
+                            Panele yönlendiriliyorsunuz
+                        </p>
+
                         <div className="ls__progress">
                             <div className="ls__progress-fill" />
                         </div>
@@ -218,8 +264,14 @@ const Login = ({ setIsAuthenticated }) => {
                     <div className="ls__logo-emblem">
                         <IcoTruck />
                     </div>
-                    <span className="ls__logo-name">DEDSİS</span>
-                    <span className="ls__logo-sub">Gelir &amp; Gider Yönetim Sistemi</span>
+
+                    <span className="ls__logo-name">
+                        DEDSİS
+                    </span>
+
+                    <span className="ls__logo-sub">
+                        Gelir &amp; Gider Yönetim Sistemi
+                    </span>
                 </div>
 
                 <form onSubmit={handleSubmit} autoComplete="off" noValidate>
@@ -228,6 +280,7 @@ const Login = ({ setIsAuthenticated }) => {
                             <span className="ls__field-icon">
                                 <IcoUser />
                             </span>
+
                             <input
                                 className="ls__input"
                                 type="text"
@@ -244,6 +297,7 @@ const Login = ({ setIsAuthenticated }) => {
                             <span className="ls__field-icon">
                                 <IcoLock />
                             </span>
+
                             <input
                                 className="ls__input"
                                 type="password"
@@ -258,6 +312,7 @@ const Login = ({ setIsAuthenticated }) => {
                         {status === "error" && (
                             <div className="ls__error">
                                 <span className="ls__error-dot" />
+
                                 <span className="ls__error-text">
                                     Kullanıcı adı veya şifre hatalı.
                                 </span>
@@ -268,7 +323,10 @@ const Login = ({ setIsAuthenticated }) => {
                     <button
                         type="submit"
                         className="ls__btn"
-                        disabled={status === "loading" || status === "success"}
+                        disabled={
+                            status === "loading" ||
+                            status === "success"
+                        }
                     >
                         {status === "loading" ? (
                             <span className="ls__spin" />
