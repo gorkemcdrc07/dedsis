@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import "./Basbug.css";
 
@@ -85,7 +85,7 @@ export default function Basbug() {
     const [kaydediliyor, setKaydediliyor] = useState(false);
     const [yukleniyor, setYukleniyor] = useState(false);
 
-    const verileriGetir = async (tarih = secilenTarih) => {
+    const verileriGetir = useCallback(async (tarih = secilenTarih) => {
         try {
             setYukleniyor(true);
 
@@ -116,11 +116,11 @@ export default function Basbug() {
         } finally {
             setYukleniyor(false);
         }
-    };
+    }, [secilenTarih]);
 
     useEffect(() => {
         verileriGetir(secilenTarih);
-    }, [secilenTarih]);
+    }, [secilenTarih, verileriGetir]);
 
     const yeniSatirEkle = () => {
         setSatirlar((prev) => [...prev, bosSatirOlustur()]);

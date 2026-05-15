@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import "./Evidea.css";
 
@@ -85,7 +85,7 @@ export default function Evidea() {
     const [kaydediliyor, setKaydediliyor] = useState(false);
     const [yukleniyor, setYukleniyor] = useState(false);
 
-    const verileriGetir = async (tarih = secilenTarih) => {
+    const verileriGetir = useCallback(async (tarih = secilenTarih) => {
         try {
             setYukleniyor(true);
 
@@ -105,18 +105,22 @@ export default function Evidea() {
                 return;
             }
 
-            setSatirlar(data && data.length > 0 ? data.map(supabaseVerisindenSatiraDonustur) : [bosSatirOlustur()]);
+            setSatirlar(
+                data && data.length > 0
+                    ? data.map(supabaseVerisindenSatiraDonustur)
+                    : [bosSatirOlustur()]
+            );
         } catch (err) {
             console.error(err);
             alert("Beklenmeyen bir hata oluştu");
         } finally {
             setYukleniyor(false);
         }
-    };
+    }, [secilenTarih]);
 
     useEffect(() => {
         verileriGetir(secilenTarih);
-    }, [secilenTarih]);
+    }, [secilenTarih, verileriGetir]);
 
     const yeniSatirEkle = () => {
         setSatirlar((prev) => [...prev, bosSatirOlustur()]);
@@ -165,7 +169,11 @@ export default function Evidea() {
             <div className="evidea-header">
                 <div>
                     <h1>Evidea Operasyon Ekranı</h1>
-                    <p>{yukleniyor ? "Kayıtlar yükleniyor..." : "Seçilen tarihe ait kayıtları görüntüleyin ve yeni kayıt ekleyin."}</p>
+                    <p>
+                        {yukleniyor
+                            ? "Kayıtlar yükleniyor..."
+                            : "Seçilen tarihe ait kayıtları görüntüleyin ve yeni kayıt ekleyin."}
+                    </p>
                 </div>
 
                 <div className="evidea-actions">
@@ -182,7 +190,11 @@ export default function Evidea() {
                         + Yeni Değer Ekle
                     </button>
 
-                    <button className="evidea-save-button" onClick={kaydet} disabled={kaydediliyor}>
+                    <button
+                        className="evidea-save-button"
+                        onClick={kaydet}
+                        disabled={kaydediliyor}
+                    >
                         {kaydediliyor ? "Kaydediliyor..." : "Kaydet"}
                     </button>
                 </div>
@@ -194,7 +206,9 @@ export default function Evidea() {
                         <thead>
                             <tr>
                                 <th>#</th>
-                                {kolonlar.map((kolon) => <th key={kolon}>{kolon}</th>)}
+                                {kolonlar.map((kolon) => (
+                                    <th key={kolon}>{kolon}</th>
+                                ))}
                                 <th>İşlem</th>
                             </tr>
                         </thead>
@@ -209,11 +223,16 @@ export default function Evidea() {
                                             {kolon === "Seyir Durumu" ? (
                                                 <select
                                                     value={satir[kolon]}
-                                                    onChange={(e) => veriDegistir(index, kolon, e.target.value)}
+                                                    onChange={(e) =>
+                                                        veriDegistir(index, kolon, e.target.value)
+                                                    }
                                                 >
                                                     <option value="">Seçiniz</option>
+
                                                     {seyirDurumuSecenekleri.map((secenek) => (
-                                                        <option key={secenek} value={secenek}>{secenek}</option>
+                                                        <option key={secenek} value={secenek}>
+                                                            {secenek}
+                                                        </option>
                                                     ))}
                                                 </select>
                                             ) : (
@@ -226,7 +245,9 @@ export default function Evidea() {
                                                                 : "text"
                                                     }
                                                     value={satir[kolon]}
-                                                    onChange={(e) => veriDegistir(index, kolon, e.target.value)}
+                                                    onChange={(e) =>
+                                                        veriDegistir(index, kolon, e.target.value)
+                                                    }
                                                     placeholder={kolon}
                                                 />
                                             )}
