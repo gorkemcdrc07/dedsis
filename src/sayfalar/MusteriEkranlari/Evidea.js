@@ -7,6 +7,7 @@ const MUSTERI_ADI = "Evidea";
 const kolonlar = [
     "Yükleme Tarihi",
     "Yükleme Yeri",
+    "Planlanan Yükleme Saati",
     "Plaka",
     "Sürücü Adı Soyadı",
     "İletişim",
@@ -49,6 +50,7 @@ const tarihAraligi = (tarih) => {
 const supabaseVerisindenSatiraDonustur = (item) => ({
     "Yükleme Tarihi": item.yukleme_tarihi || "",
     "Yükleme Yeri": item.yukleme_yeri || "",
+    "Planlanan Yükleme Saati": item.planlanan_yukleme_saati || "",
     "Plaka": item.plaka || "",
     "Sürücü Adı Soyadı": item.surucu_adi_soyadi || "",
     "İletişim": item.iletisim || "",
@@ -66,6 +68,7 @@ const satirdanSupabaseVerisineDonustur = (satir) => ({
     musteri_adi: MUSTERI_ADI,
     yukleme_tarihi: satir["Yükleme Tarihi"] || null,
     yukleme_yeri: satir["Yükleme Yeri"] || null,
+    planlanan_yukleme_saati: satir["Planlanan Yükleme Saati"] || null,
     plaka: satir["Plaka"] || null,
     surucu_adi_soyadi: satir["Sürücü Adı Soyadı"] || null,
     iletisim: satir["İletişim"] || null,

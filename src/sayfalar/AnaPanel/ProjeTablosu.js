@@ -1028,8 +1028,10 @@ export default function ProjeTablosu({
     const [search, setSearch] = useState("");
     const [sort, setSort] = useState("profit");
     const [selPlate, setSelPlate] = useState(null);
+    const [projectPage, setProjectPage] = useState(1);
     const [dagilimStateRows, setDagilimStateRows] = useState(projeDagilimRows || []);
 
+    const PROJECT_PAGE_SIZE = 100;
     useEffect(() => {
         setDagilimStateRows(projeDagilimRows || []);
     }, [projeDagilimRows]);
@@ -1127,6 +1129,21 @@ export default function ProjeTablosu({
 
         return s;
     }, [enrichedProjects, search, sort]);
+
+    const totalProjectPages = Math.max(
+        1,
+        Math.ceil(filtered.length / PROJECT_PAGE_SIZE)
+    );
+
+    const pagedFiltered = useMemo(() => {
+        const start = (projectPage - 1) * PROJECT_PAGE_SIZE;
+        return filtered.slice(start, start + PROJECT_PAGE_SIZE);
+    }, [filtered, projectPage]);
+
+    useEffect(() => {
+        setProjectPage(1);
+        setExpanded(null);
+    }, [search, sort, selectedMonth]);
 
     const totals = useMemo(() => {
         const projectTotals = enrichedProjects.reduce(
@@ -1640,7 +1657,9 @@ export default function ProjeTablosu({
                     </div>
 
                     <div className="pt-toolbar-bottom">
-                        <span className="pt-tag">{filtered.length} proje</span>
+                        <span className="pt-tag">
+                            {filtered.length} proje • Sayfa {projectPage}/{totalProjectPages}
+                        </span>
                         <span className="pt-tag">Ay: {selectedMonth || "Tümü"}</span>
                         <span className="pt-tag">
                             Genel Dağılım: {fmt(monthlyDagilimTotal, true)}
@@ -1672,8 +1691,8 @@ export default function ProjeTablosu({
                                     </td>
                                 </tr>
                             ) : (
-                                filtered.map((project, index) => {
-                                    const projectRowKey =
+                                    pagedFiltered.map((project, index) => {
+                                        const projectRowKey =
                                         project.key ??
                                         project.id ??
                                         project.projectId ??
@@ -1804,6 +1823,35 @@ export default function ProjeTablosu({
                             </tr>
                         </tfoot>
                     </table>
+                    <div className="pt-pagination">
+                        <button
+                            type="button"
+                            className="pt-secondary-btn"
+                            disabled={projectPage <= 1}
+                            onClick={() => {
+                                setExpanded(null);
+                                setProjectPage((p) => Math.max(1, p - 1));
+                            }}
+                        >
+                            Önceki
+                        </button>
+
+                        <span className="pt-page-info">
+                            Sayfa {projectPage} / {totalProjectPages}
+                        </span>
+
+                        <button
+                            type="button"
+                            className="pt-secondary-btn"
+                            disabled={projectPage >= totalProjectPages}
+                            onClick={() => {
+                                setExpanded(null);
+                                setProjectPage((p) => Math.min(totalProjectPages, p + 1));
+                            }}
+                        >
+                            Sonraki
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

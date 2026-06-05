@@ -11,7 +11,7 @@ const allowedOrigins = [
 ];
 
 const corsOptions = {
-    origin: function (origin, callback) {
+    origin(origin, callback) {
         console.log("Origin:", origin);
 
         if (!origin || allowedOrigins.includes(origin)) {
@@ -30,11 +30,47 @@ app.use(express.json({ limit: "10mb" }));
 const API_URL = process.env.API_URL;
 const TOKEN = process.env.API_TOKEN;
 
-const PAGE_SIZE = 5000;
+const PAGE_SIZE = 100;
 const CHUNK_DAYS = 1;
+const API_DELAY_MS = 300;
+const CACHE_TTL_MS = 1000 * 60 * 10;
 
-// Sadece sayfa cache'i tutuyoruz, tüm ayı değil
 const requestCache = new Map();
+
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function postWithRetry(url, body, options, retries = 3) {
+    let lastError;
+
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            return await axios.post(url, body, options);
+        } catch (error) {
+            lastError = error;
+
+            const retryable =
+                error.code === "ECONNRESET" ||
+                error.code === "ETIMEDOUT" ||
+                error.code === "ECONNABORTED" ||
+                error.response?.status === 429 ||
+                error.response?.status >= 500;
+
+            if (!retryable || attempt === retries) {
+                throw error;
+            }
+
+            console.log(
+                `🔁 Retry ${attempt}/${retries} - ${error.code || error.message}`
+            );
+
+            await sleep(1000 * attempt);
+        }
+    }
+
+    throw lastError;
+}
 
 function extractArray(data) {
     if (Array.isArray(data)) return data;
@@ -72,15 +108,15 @@ function splitDateRange(startDateStr, endDateStr, chunkDays = 1) {
     return ranges;
 }
 
-function getCacheKey({ startDate, endDate, userId, page }) {
-    return JSON.stringify({ startDate, endDate, userId, page });
+function getCacheKey({ startDate, endDate, userId, page, pageSize }) {
+    return JSON.stringify({ startDate, endDate, userId, page, pageSize });
 }
 
-function cleanupOldCache(maxAgeMs = 1000 * 60 * 10) {
+function cleanupOldCache() {
     const now = Date.now();
 
     for (const [key, value] of requestCache.entries()) {
-        if (!value?.createdAt || now - value.createdAt > maxAgeMs) {
+        if (!value?.createdAt || now - value.createdAt > CACHE_TTL_MS) {
             requestCache.delete(key);
         }
     }
@@ -115,7 +151,13 @@ app.post("/api/get-data", async (req, res) => {
             return res.status(500).json({ error: "API_TOKEN tanımlı değil" });
         }
 
-        const { startDate, endDate, userId, page = 1 } = req.body || {};
+        const {
+            startDate,
+            endDate,
+            userId,
+            page = 1,
+            pageSize = PAGE_SIZE,
+        } = req.body || {};
 
         if (!startDate || !endDate) {
             return res.status(400).json({
@@ -124,7 +166,18 @@ app.post("/api/get-data", async (req, res) => {
         }
 
         const safePage = Math.max(Number(page) || 1, 1);
-        const cacheKey = getCacheKey({ startDate, endDate, userId, page: safePage });
+        const safePageSize = Math.min(
+            Math.max(Number(pageSize) || PAGE_SIZE, 1),
+            1000
+        );
+
+        const cacheKey = getCacheKey({
+            startDate,
+            endDate,
+            userId,
+            page: safePage,
+            pageSize: safePageSize,
+        });
 
         const cached = requestCache.get(cacheKey);
 
@@ -136,11 +189,12 @@ app.post("/api/get-data", async (req, res) => {
         const chunks = splitDateRange(startDate, endDate, CHUNK_DAYS);
         console.log("🧩 Parça sayısı:", chunks.length);
 
-        const startIndex = (safePage - 1) * PAGE_SIZE;
-        const endIndex = startIndex + PAGE_SIZE;
+        const startIndex = (safePage - 1) * safePageSize;
+        const endIndex = startIndex + safePageSize;
 
         let totalCount = 0;
         let pageData = [];
+        let reachedRequestedPage = false;
 
         for (let i = 0; i < chunks.length; i++) {
             const chunk = chunks[i];
@@ -153,15 +207,20 @@ app.post("/api/get-data", async (req, res) => {
 
             console.log(`⏳ Parça ${i + 1}/${chunks.length} başlıyor`, chunkBody);
 
-            const response = await axios.post(API_URL, chunkBody, {
-                headers: {
-                    Authorization: `Bearer ${TOKEN}`,
-                    "Content-Type": "application/json",
+            const response = await postWithRetry(
+                API_URL,
+                chunkBody,
+                {
+                    headers: {
+                        Authorization: `Bearer ${TOKEN}`,
+                        "Content-Type": "application/json",
+                    },
+                    timeout: 120000,
+                    maxContentLength: 50 * 1024 * 1024,
+                    maxBodyLength: 50 * 1024 * 1024,
                 },
-                timeout: 120000,
-                maxContentLength: 50 * 1024 * 1024,
-                maxBodyLength: 50 * 1024 * 1024,
-            });
+                3
+            );
 
             console.log(`✅ Parça ${i + 1}/${chunks.length} cevap verdi`);
 
@@ -177,22 +236,35 @@ app.post("/api/get-data", async (req, res) => {
                 const localStart = Math.max(0, startIndex - partStartGlobalIndex);
                 const localEnd = Math.min(partLength, endIndex - partStartGlobalIndex);
 
-                pageData.push(...partData.slice(localStart, localEnd));
+                pageData = pageData.concat(partData.slice(localStart, localEnd));
             }
 
             totalCount += partLength;
+
+            if (pageData.length >= safePageSize) {
+                reachedRequestedPage = true;
+            }
+
+            if (reachedRequestedPage) {
+                const nextPageProbeIndex = endIndex;
+
+                if (totalCount > nextPageProbeIndex) {
+                    break;
+                }
+            }
+
+            await sleep(API_DELAY_MS);
         }
 
-        const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+        const hasNextPage = totalCount > endIndex || pageData.length === safePageSize;
 
         const responseBody = {
             items: pageData,
             pagination: {
                 page: safePage,
-                pageSize: PAGE_SIZE,
-                totalCount,
-                totalPages,
-                hasNextPage: safePage < totalPages,
+                pageSize: safePageSize,
+                returnedCount: pageData.length,
+                hasNextPage,
             },
         };
 
@@ -201,8 +273,12 @@ app.post("/api/get-data", async (req, res) => {
             response: responseBody,
         });
 
+        const responseSizeMb = JSON.stringify(responseBody).length / 1024 / 1024;
+
         console.log(
-            `📄 Sayfa dönülüyor: ${safePage}/${totalPages} - ${pageData.length} kayıt`
+            `📄 Sayfa dönülüyor: ${safePage} - ${pageData.length} kayıt - ${responseSizeMb.toFixed(
+                2
+            )} MB`
         );
 
         return res.status(200).json(responseBody);
