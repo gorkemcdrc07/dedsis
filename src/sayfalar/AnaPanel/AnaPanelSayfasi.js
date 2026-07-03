@@ -16,6 +16,8 @@ import ProjeTablosu2 from "./ProjeTablosu2";
 import DonemKarsilastirma from "./DonemKarsilastirma";
 import YapayZekaAnalizi from "./YapayZekaAnalizi";
 
+const API_BASE_URL = "https://dedsis.onrender.com";
+
 const TABS = [
     { key: "overview", label: "Özet Görünümü", icon: "📊" },
     { key: "projects", label: "Proje Tablosu", icon: "📁" },
@@ -30,6 +32,28 @@ function getSourceTableName(row) {
     if (kaynak === "muhasebe") return "muhasebe";
 
     return null;
+}
+
+function splitDays(startDateStr, endDateStr) {
+    const days = [];
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+
+    let current = new Date(start);
+
+    while (current <= end) {
+        const date = current.toISOString().slice(0, 10);
+
+        days.push({
+            label: date,
+            startDate: `${date}T00:00:00`,
+            endDate: `${date}T23:59:59`,
+        });
+
+        current.setDate(current.getDate() + 1);
+    }
+
+    return days;
 }
 
 export default function AnaPanelSayfasi() {
@@ -48,6 +72,13 @@ export default function AnaPanelSayfasi() {
     const [tab, setTab] = useState("overview");
     const [tableView] = useState(1);
     const [elapsed, setElapsed] = useState(0);
+
+    const [loadInfo, setLoadInfo] = useState({
+        totalDays: 0,
+        loadedDays: 0,
+        totalRecords: 0,
+        currentDay: "",
+    });
 
     const selectedMonth = useMemo(() => {
         if (!startDate) return "";
@@ -73,42 +104,72 @@ export default function AnaPanelSayfasi() {
         };
     }, [loading]);
 
-    const fetchAllPages = async (payload) => {
-        let currentPage = 1;
-        let totalPages = 1;
-        let allItems = [];
+    const fetchAllDaysLive = async (payload, allowedProjectSet) => {
+        const days = splitDays(startDate, endDate);
+        let allRows = [];
 
-        while (currentPage <= totalPages) {
-            const resp = await fetch("https://dedsis.onrender.com/api/get-data", {
+        setRows([]);
+
+        setLoadInfo({
+            totalDays: days.length,
+            loadedDays: 0,
+            totalRecords: 0,
+            currentDay: "",
+        });
+
+        for (let i = 0; i < days.length; i++) {
+            const day = days[i];
+
+            const resp = await fetch(`${API_BASE_URL}/api/get-data-day`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    ...payload,
-                    page: currentPage,
+                    startDate: day.startDate,
+                    endDate: day.endDate,
+                    userId: payload.userId,
                 }),
             });
 
             if (!resp.ok) {
                 const errData = await resp.json().catch(() => ({}));
                 throw new Error(
-                    errData?.detail
-                        ? `API Hatası: ${JSON.stringify(errData.detail)}`
-                        : errData?.message || `API Hatası: HTTP ${resp.status}`
+                    errData?.message ||
+                    errData?.error ||
+                    `API Hatası: HTTP ${resp.status}`
                 );
             }
 
             const result = await resp.json();
-
             const items = Array.isArray(result?.items) ? result.items : [];
-            const pagination = result?.pagination || {};
 
-            allItems = allItems.concat(items);
-            totalPages = Number(pagination.totalPages || 1);
+            const normalized = normalizeRows(items);
 
-            currentPage += 1;
+            const filtered = normalized.filter((row) =>
+                allowedProjectSet.has(norm(row.ProjectName))
+            );
+
+            allRows = allRows.concat(filtered);
+
+            setRows((prev) => [...prev, ...filtered]);
+
+            setLoadInfo({
+                totalDays: days.length,
+                loadedDays: i + 1,
+                totalRecords: allRows.length,
+                currentDay: day.label,
+            });
+
+            console.log(
+                `${i + 1}/${days.length} gün yüklendi`,
+                day.label,
+                "Gelen:",
+                filtered.length,
+                "Toplam:",
+                allRows.length
+            );
         }
 
-        return allItems;
+        return allRows;
     };
 
     const fetchData = async () => {
@@ -120,20 +181,15 @@ export default function AnaPanelSayfasi() {
 
         try {
             const payload = {
-                startDate: `${startDate}T00:00:00`,
-                endDate: `${endDate}T23:59:59`,
                 userId: 1,
             };
 
             const [
-                apiItems,
                 { data: projelerData, error: projelerError },
                 { data: projeDagilimData, error: projeDagilimError },
                 { data: muhasebeData, error: muhasebeError },
                 { data: ikData, error: ikError },
             ] = await Promise.all([
-                fetchAllPages(payload),
-
                 supabase
                     .from("projeler")
                     .select("id, proje_adi, reel_proje_adi")
@@ -158,16 +214,6 @@ export default function AnaPanelSayfasi() {
                     .eq("donem_ayi", selectedMonth),
             ]);
 
-            console.log("startDate", startDate);
-            console.log("endDate", endDate);
-            console.log("selectedMonth", selectedMonth);
-            console.log("selectedYear", selectedYear);
-            console.log("muhasebeData", muhasebeData);
-            console.log("ikData", ikData);
-            console.log("muhasebeError", muhasebeError);
-            console.log("ikError", ikError);
-            console.log("projeDagilimData ilk 20", (projeDagilimData || []).slice(0, 20));
-
             if (projelerError || projeDagilimError || muhasebeError || ikError) {
                 throw new Error(
                     projelerError?.message ||
@@ -178,7 +224,10 @@ export default function AnaPanelSayfasi() {
                 );
             }
 
-            const normalized = normalizeRows(Array.isArray(apiItems) ? apiItems : []);
+            setProjectMasters(projelerData || []);
+            setProjeDagilimRows(projeDagilimData || []);
+            setMuhasebeRows(muhasebeData || []);
+            setIkRows(ikData || []);
 
             const allowedProjectSet = new Set(
                 (projelerData || [])
@@ -186,15 +235,7 @@ export default function AnaPanelSayfasi() {
                     .filter(Boolean)
             );
 
-            const filteredApiRows = normalized.filter((row) =>
-                allowedProjectSet.has(norm(row.ProjectName))
-            );
-
-            setRows(filteredApiRows);
-            setProjectMasters(projelerData || []);
-            setProjeDagilimRows(projeDagilimData || []);
-            setMuhasebeRows(muhasebeData || []);
-            setIkRows(ikData || []);
+            await fetchAllDaysLive(payload, allowedProjectSet);
         } catch (err) {
             setError(err.message || "Veriler alınamadı.");
             setRows([]);
@@ -206,6 +247,7 @@ export default function AnaPanelSayfasi() {
             setLoading(false);
         }
     };
+
     const projects = useMemo(() => {
         const apiProjects = aggregateByProject(rows);
 
@@ -225,7 +267,6 @@ export default function AnaPanelSayfasi() {
             })
             .filter((project) => !!project.projeMaster);
     }, [rows, projectMasters]);
-
 
     const validProjectIds = useMemo(() => {
         return new Set(
@@ -253,7 +294,10 @@ export default function AnaPanelSayfasi() {
 
             if (validProjectIds.has(projeId)) return;
 
-            const name = String(row.reel_proje_adi || row.proje_adi || "Dağıtılmamış Gider").trim();
+            const name = String(
+                row.reel_proje_adi || row.proje_adi || "Dağıtılmamış Gider"
+            ).trim();
+
             const tutar = Number(row.tutar || 0);
 
             const current = grouped.get(name) || 0;
@@ -282,6 +326,7 @@ export default function AnaPanelSayfasi() {
             sabitTotal,
         };
     }, [projeDagilimRows, validProjectIds]);
+
     const totals = useMemo(() => {
         const apiPurchase = rows.reduce(
             (a, r) => a + Number(r.PurchaseInvoiceIncome || 0),
@@ -434,10 +479,12 @@ export default function AnaPanelSayfasi() {
 
             if (meta.type === "edit") {
                 const sourceRows = meta.item?.sourceRows || [];
+
                 const oldTotal = sourceRows.reduce(
                     (sum, r) => sum + Number(r.tutar || 0),
                     0
                 );
+
                 const newTotal = Number(meta.form?.tutar || 0);
                 const ratio = oldTotal > 0 ? newTotal / oldTotal : 1;
 
@@ -517,16 +564,22 @@ export default function AnaPanelSayfasi() {
         }
     };
 
+    const progressPercent = loadInfo.totalDays
+        ? Math.round((loadInfo.loadedDays / loadInfo.totalDays) * 100)
+        : 0;
+
     return (
         <div className="app">
             <div className="topbar">
                 <div className="brand">
                     Ana<em>Panel</em>
                 </div>
+
                 <div className="spacer" />
 
                 <div className="date-group">
                     <span className="dlabel">Başlangıç</span>
+
                     <input
                         className="dinput"
                         type="date"
@@ -537,6 +590,7 @@ export default function AnaPanelSayfasi() {
                     <span className="dsep">—</span>
 
                     <span className="dlabel">Bitiş</span>
+
                     <input
                         className="dinput"
                         type="date"
@@ -554,6 +608,38 @@ export default function AnaPanelSayfasi() {
                 </div>
             </div>
 
+            {loading && (
+                <div className="live-load-panel">
+                    <div className="live-load-main">
+                        <div className="live-load-icon">⚡</div>
+
+                        <div>
+                            <div className="live-load-title">
+                                Veriler canlı yükleniyor
+                            </div>
+
+                            <div className="live-load-sub">
+                                {loadInfo.loadedDays} / {loadInfo.totalDays} gün işlendi ·{" "}
+                                {loadInfo.totalRecords.toLocaleString("tr-TR")} kayıt
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="live-progress">
+                        <div
+                            className="live-progress-bar"
+                            style={{ width: `${progressPercent}%` }}
+                        />
+                    </div>
+
+                    <div className="live-load-meta">
+                        <span>Gün: {loadInfo.currentDay || "-"}</span>
+                        <span>İlerleme: %{progressPercent}</span>
+                        <span>Süre: {elapsed} sn</span>
+                    </div>
+                </div>
+            )}
+
             {error ? <div className="err">{error}</div> : null}
 
             {missingDagilimWarning.total > 0 && (
@@ -565,16 +651,16 @@ export default function AnaPanelSayfasi() {
                         border: "1px solid #ffe69c",
                     }}
                 >
-                    <strong>
-                        ⚠️ REEL’de olmayan projelere maliyet eklenmiş
-                    </strong>
+                    <strong>⚠️ REEL’de olmayan projelere maliyet eklenmiş</strong>
 
                     <div style={{ marginTop: 6 }}>
                         İK: {fmt(missingDagilimWarning.ikTotal, true)}
                     </div>
+
                     <div>
                         Muhasebe: {fmt(missingDagilimWarning.muhasebeTotal, true)}
                     </div>
+
                     <div>
                         Diğer Giderler: {fmt(missingDagilimWarning.sabitTotal, true)}
                     </div>
@@ -592,6 +678,7 @@ export default function AnaPanelSayfasi() {
                     </div>
                 </div>
             )}
+
             <div className="body">
                 <div className="content">
                     <div className="stats-bar">
@@ -621,6 +708,7 @@ export default function AnaPanelSayfasi() {
                             <div className={`stat-val ${totals.profit >= 0 ? "g" : "r"}`}>
                                 {fmt(totals.profit, true)}
                             </div>
+
                             <div className={`stat-sub ${totals.profit >= 0 ? "g" : "r"}`}>
                                 %{Math.abs(totals.profitPercent).toFixed(1)}
                             </div>
@@ -640,13 +728,7 @@ export default function AnaPanelSayfasi() {
                         ))}
                     </div>
 
-                    {loading ? (
-                        <div className="loading">
-                            <div className="spin" />
-                            <div>Veriler hazırlanıyor...</div>
-                            <div>{elapsed} saniyedir yükleniyor...</div>
-                        </div>
-                    ) : rows.length === 0 ? (
+                    {!loading && rows.length === 0 ? (
                         <div className="no-data">
                             <div className="no-data-i">📭</div>
                             <div className="no-data-t">Henüz veri yok</div>
@@ -670,15 +752,15 @@ export default function AnaPanelSayfasi() {
                             {tab === "projects" && (
                                 <>
                                     {tableView === 1 ? (
-                                                <ProjeTablosu
-                                                    projects={projects}
-                                                    allRows={rows}
-                                                    projeDagilimRows={validDagilimRows}
-                                                    selectedMonth={selectedMonth}
-                                                    onDagilimRowsChange={handleDagilimRowsChange}
-                                                    overallTotals={totals}
-                                                />
-                                            ) : (
+                                        <ProjeTablosu
+                                            projects={projects}
+                                            allRows={rows}
+                                            projeDagilimRows={validDagilimRows}
+                                            selectedMonth={selectedMonth}
+                                            onDagilimRowsChange={handleDagilimRowsChange}
+                                            overallTotals={totals}
+                                        />
+                                    ) : (
                                         <ProjeTablosu2
                                             projects={projects}
                                             allRows={rows}
