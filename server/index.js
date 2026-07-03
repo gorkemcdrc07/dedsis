@@ -77,6 +77,7 @@ function extractArray(data) {
     if (Array.isArray(data?.data)) return data.data;
     if (Array.isArray(data?.Data)) return data.Data;
     if (Array.isArray(data?.result)) return data.result;
+    if (Array.isArray(data?.items)) return data.items;
     return [];
 }
 
@@ -133,6 +134,72 @@ app.get("/api/test", (req, res) => {
         apiUrlExists: !!API_URL,
         tokenExists: !!TOKEN,
     });
+});
+
+app.post("/api/get-data-day", async (req, res) => {
+    try {
+        console.log("📤 Günlük req.body:", req.body);
+        console.log("API_URL:", API_URL);
+        console.log("TOKEN VAR MI:", !!TOKEN);
+
+        if (!API_URL) {
+            return res.status(500).json({ error: "API_URL tanımlı değil" });
+        }
+
+        if (!TOKEN) {
+            return res.status(500).json({ error: "API_TOKEN tanımlı değil" });
+        }
+
+        const { startDate, endDate, userId } = req.body || {};
+
+        if (!startDate || !endDate) {
+            return res.status(400).json({
+                error: "startDate ve endDate zorunlu",
+            });
+        }
+
+        const response = await postWithRetry(
+            API_URL,
+            {
+                startDate,
+                endDate,
+                userId,
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${TOKEN}`,
+                    "Content-Type": "application/json",
+                },
+                timeout: 120000,
+                maxContentLength: 50 * 1024 * 1024,
+                maxBodyLength: 50 * 1024 * 1024,
+            },
+            3
+        );
+
+        const items = extractArray(response.data);
+
+        console.log("✅ Günlük kayıt sayısı:", items.length);
+
+        return res.status(200).json({
+            items,
+            count: items.length,
+        });
+    } catch (error) {
+        console.error("❌ GET DATA DAY ERROR");
+        console.error("message:", error.message);
+        console.error("code:", error.code);
+        console.error("status:", error.response?.status);
+        console.error("data:", error.response?.data);
+
+        return res.status(500).json({
+            error: "API error",
+            message: error.message,
+            code: error.code || null,
+            status: error.response?.status || null,
+            detail: error.response?.data || null,
+        });
+    }
 });
 
 app.post("/api/get-data", async (req, res) => {
@@ -256,7 +323,7 @@ app.post("/api/get-data", async (req, res) => {
             await sleep(API_DELAY_MS);
         }
 
-        const hasNextPage = totalCount > endIndex || pageData.length === safePageSize;
+        const hasNextPage = totalCount > endIndex;
 
         const responseBody = {
             items: pageData,

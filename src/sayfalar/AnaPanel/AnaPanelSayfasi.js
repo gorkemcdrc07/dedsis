@@ -120,13 +120,15 @@ export default function AnaPanelSayfasi() {
         for (let i = 0; i < days.length; i++) {
             const day = days[i];
 
-            const resp = await fetch(`${API_BASE_URL}/api/get-data-day`, {
+            const resp = await fetch(`${API_BASE_URL}/api/get-data`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     startDate: day.startDate,
                     endDate: day.endDate,
                     userId: payload.userId,
+                    page: 1,
+                    pageSize: 1000,
                 }),
             });
 
