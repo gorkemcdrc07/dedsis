@@ -25,8 +25,8 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(express.json({ limit: "10mb" }));
-
 const API_URL = process.env.API_URL;
 const TOKEN = process.env.API_TOKEN;
 
