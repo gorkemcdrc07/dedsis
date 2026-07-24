@@ -247,12 +247,12 @@ app.post("/api/get-data", async (req, res) => {
             pageSize: safePageSize,
         });
 
-        const cached = requestCache.get(cacheKey);
+     //   const cached = requestCache.get(cacheKey);
 
-        if (cached) {
-            console.log("⚡ Cache kullanıldı:", cacheKey);
-            return res.status(200).json(cached.response);
-        }
+     //   if (cached) {
+    //         console.log("⚡ Cache kullanıldı:", cacheKey);
+     //        return res.status(200).json(cached.response);
+    //     }
 
         const chunks = splitDateRange(startDate, endDate, CHUNK_DAYS);
         console.log("🧩 Parça sayısı:", chunks.length);
@@ -294,6 +294,7 @@ app.post("/api/get-data", async (req, res) => {
 
             const partData = extractArray(response.data);
             const partLength = partData.length;
+            console.log("API RESPONSE:", response.data);
 
             console.log(`📦 Parça ${i + 1} kayıt sayısı:`, partLength);
 
