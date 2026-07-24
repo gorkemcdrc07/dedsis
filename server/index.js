@@ -85,26 +85,25 @@ function extractArray(data) {
 function splitDateRange(startDateStr, endDateStr, chunkDays = 1) {
     const ranges = [];
 
-    const start = new Date(startDateStr);
-    const end = new Date(endDateStr);
+    const startDateOnly = startDateStr.slice(0, 10);
+    const endDateOnly = endDateStr.slice(0, 10);
 
-    let currentStart = new Date(start);
+    let currentDate = new Date(`${startDateOnly}T00:00:00`);
+    const finalDate = new Date(`${endDateOnly}T00:00:00`);
 
-    while (currentStart <= end) {
-        const currentEnd = new Date(currentStart);
-        currentEnd.setDate(currentEnd.getDate() + chunkDays - 1);
+    while (currentDate <= finalDate) {
+        const year = currentDate.getFullYear();
+        const month = String(currentDate.getMonth() + 1).padStart(2, "0");
+        const day = String(currentDate.getDate()).padStart(2, "0");
 
-        if (currentEnd > end) {
-            currentEnd.setTime(end.getTime());
-        }
+        const dateText = `${year}-${month}-${day}`;
 
         ranges.push({
-            startDate: new Date(currentStart).toISOString().slice(0, 19),
-            endDate: new Date(currentEnd).toISOString().slice(0, 19),
+            startDate: `${dateText}T00:00:00`,
+            endDate: `${dateText}T23:59:59`,
         });
 
-        currentStart = new Date(currentEnd);
-        currentStart.setDate(currentStart.getDate() + 1);
+        currentDate.setDate(currentDate.getDate() + chunkDays);
     }
 
     return ranges;
@@ -293,6 +292,26 @@ app.post("/api/get-data", async (req, res) => {
             console.log(`✅ Parça ${i + 1}/${chunks.length} cevap verdi`);
 
             const partData = extractArray(response.data);
+            console.log(
+                "TİP DAĞILIMI:",
+                partData.reduce((acc, item) => {
+                    const tipi = item.Tipi || "Belirsiz";
+                    acc[tipi] = (acc[tipi] || 0) + 1;
+                    return acc;
+                }, {})
+            );
+
+            console.log(
+                "ALIŞ/GİDER KAYITLARI:",
+                partData.filter(
+                    (item) =>
+                        Number(item.PurchaseInvoiceIncome || 0) !== 0 ||
+                        Number(item.PurchaseOrderRevenue || 0) !== 0 ||
+                        Number(item.ServiceExpenses || 0) !== 0 ||
+                        Number(item.CostExpenses || 0) !== 0 ||
+                        item.Tipi === "Gider"
+                )
+            );
             const partLength = partData.length;
             console.log("API RESPONSE:", response.data);
 
