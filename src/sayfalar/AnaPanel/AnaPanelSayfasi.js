@@ -144,12 +144,48 @@ export default function AnaPanelSayfasi() {
             const result = await resp.json();
             const items = Array.isArray(result?.items) ? result.items : [];
 
-            const normalized = normalizeRows(items);
+            const alanToplamlari = {};
 
-            const filtered = normalized.filter((row) =>
-                allowedProjectSet.has(norm(row.ProjectName))
+            items.forEach((item) => {
+                Object.entries(item).forEach(([alan, deger]) => {
+                    const sayi = Number(deger);
+
+                    if (Number.isFinite(sayi) && sayi !== 0) {
+                        alanToplamlari[alan] =
+                            (alanToplamlari[alan] || 0) + sayi;
+                    }
+                });
+            });
+
+            console.table(
+                Object.entries(alanToplamlari)
+                    .map(([alan, toplam]) => ({
+                        Alan: alan,
+                        Toplam: toplam,
+                    }))
+                    .sort((a, b) => b.Toplam - a.Toplam)
             );
 
+            const normalized = normalizeRows(items);
+            const selectedStart = new Date(`${startDate}T00:00:00`);
+            const selectedEnd = new Date(`${endDate}T23:59:59`);
+
+            const filtered = normalized.filter((row) => {
+                const projectAllowed = allowedProjectSet.has(
+                    norm(row.ProjectName)
+                );
+
+                const despatchDate = new Date(
+                    row.TMSDespatchesDespatchDate
+                );
+
+                const dateAllowed =
+                    !Number.isNaN(despatchDate.getTime()) &&
+                    despatchDate >= selectedStart &&
+                    despatchDate <= selectedEnd;
+
+                return projectAllowed && dateAllowed;
+            });
             allRows = allRows.concat(filtered);
 
             setRows((prev) => [...prev, ...filtered]);
@@ -330,24 +366,33 @@ export default function AnaPanelSayfasi() {
     }, [projeDagilimRows, validProjectIds]);
 
     const totals = useMemo(() => {
-        const apiPurchase = rows.reduce(
-            (a, r) => a + Number(r.PurchaseInvoiceIncome || 0),
-            0
-        );
+        const apiPurchase = rows.reduce((sum, row) => {
+            if (norm(row.Tipi) !== "gider") {
+                return sum;
+            }
 
-        const apiSales = rows.reduce(
-            (a, r) => a + Number(r.SalesInvoceIncome || 0),
-            0
-        );
+            return sum + Number(row.PurchaseInvoiceIncome || 0);
+        }, 0);
+
+        const apiSales = rows.reduce((sum, row) => {
+            if (norm(row.Tipi) !== "gelir") {
+                return sum;
+            }
+
+            return sum + Number(row.SalesInvoceIncome || 0);
+        }, 0);
 
         const dagitimPurchase = validDagilimRows.reduce((sum, row) => {
             return sum + Number(row.tutar || 0);
         }, 0);
 
-        const purchase = apiPurchase + dagitimPurchase;
+        const purchase = apiPurchase;
         const sales = apiSales;
         const profit = sales - purchase;
-        const plateCount = new Set(rows.map((r) => r.PlateNumber || "-")).size;
+
+        const plateCount = new Set(
+            rows.map((r) => r.PlateNumber || "-")
+        ).size;
 
         const toplamMuhasebe = muhasebeRows.reduce(
             (sum, item) => sum + Number(item.tutar || 0),
@@ -359,7 +404,26 @@ export default function AnaPanelSayfasi() {
             0
         );
 
-        const profitPercent = sales > 0 ? (profit / sales) * 100 : 0;
+        const profitPercent =
+            sales > 0
+                ? (profit / sales) * 100
+                : 0;
+
+        console.log("TOPLAM KONTROL", {
+            gelirSatiri: rows.filter(
+                (row) => norm(row.Tipi) === "gelir"
+            ).length,
+
+            giderSatiri: rows.filter(
+                (row) => norm(row.Tipi) === "gider"
+            ).length,
+
+            apiSales,
+            apiPurchase,
+            dagitimPurchase,
+            purchase,
+            profit,
+        });
 
         return {
             apiPurchase,
@@ -374,7 +438,6 @@ export default function AnaPanelSayfasi() {
             toplamMaliyet: toplamMuhasebe + toplamIk,
         };
     }, [rows, validDagilimRows, muhasebeRows, ikRows]);
-
     const handleDagilimRowsChange = async (updatedRows, meta) => {
         const previousDagilimRows = projeDagilimRows;
         const previousIkRows = ikRows;

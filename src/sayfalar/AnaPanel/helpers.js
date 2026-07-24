@@ -2,10 +2,13 @@ export function fmt(value, short = false) {
     const n = Number(value || 0);
 
     if (short) {
-        return n.toLocaleString("tr-TR", {
-            maximumFractionDigits: 0,
-        }) + " ₺";
+        return (
+            n.toLocaleString("tr-TR", {
+                maximumFractionDigits: 0,
+            }) + " ₺"
+        );
     }
+
     return n.toLocaleString("tr-TR", {
         style: "currency",
         currency: "TRY",
@@ -14,8 +17,13 @@ export function fmt(value, short = false) {
 }
 
 export function parseNumber(value) {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+    if (value === null || value === undefined || value === "") {
+        return 0;
+    }
+
+    if (typeof value === "number") {
+        return Number.isFinite(value) ? value : 0;
+    }
 
     let str = String(value).trim();
 
@@ -26,6 +34,7 @@ export function parseNumber(value) {
     }
 
     const parsed = Number(str);
+
     return Number.isNaN(parsed) ? 0 : parsed;
 }
 
@@ -49,7 +58,9 @@ export function monthLabel(start, end) {
     const s = new Date(start);
     const e = new Date(end);
 
-    if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return "-";
+    if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) {
+        return "-";
+    }
 
     const sameMonth =
         s.getFullYear() === e.getFullYear() &&
@@ -72,29 +83,146 @@ export function monthLabel(start, end) {
     })}`;
 }
 
+function getRowIncome(row) {
+    const tipi = norm(row.Tipi);
+
+    if (tipi !== "gelir") {
+        return 0;
+    }
+
+    return parseNumber(row.SalesInvoceIncome);
+}
+
+function getRowExpense(row) {
+    const tipi = norm(row.Tipi);
+
+    if (tipi !== "gider") {
+        return 0;
+    }
+
+    return parseNumber(row.PurchaseInvoiceIncome);
+}
+
 export function normalizeRows(data) {
-    return data.map((item, index) => ({
-        id: item.id || item.TMSDespatchesId || `row-${index}`,
-        Tipi: item.Tipi || item.Type || "-",
-        TMSDespatchesId: item.TMSDespatchesId || `despatch-${index}`,
-        TMSDespatchesDocumentNo: item.TMSDespatchesDocumentNo || item.DocumentNo || "-",
-        TMSDespatchesDespatchDate: item.TMSDespatchesDespatchDate || null,
-        SupplierName: item.SupplierName || "-",
-        CurrentAccountsName: item.CurrentAccountsName || "-",
-        ServiceExpense: item.ServiceExpense || "-",
-        ServiceExpenseName: item.ServiceExpenseName || "-",
-        PlateNumber: item.PlateNumber || "-",
-        SubServiceName: item.SubServiceName || "-",
-        ProjectName: item.ProjectName || "PROJESİZ",
-        GivenVehicleTypeName: item.GivenVehicleTypeName || "-",
-        VehicleWorkingTypeId: item.VehicleWorkingTypeId || "-",
-        VehicleMasterGroupName: item.VehicleMasterGroupName || "-",
-        SpecialGroupName: item.SpecialGroupName || "-",
-        PurchaseInvoiceIncome: parseNumber(item.PurchaseInvoiceIncome),
-        SalesInvoceIncome: parseNumber(item.SalesInvoceIncome),
-        CreatedByName: item.CreatedByName || "-",
-        CreatedDate: item.CreatedDate || null,
-    }));
+    if (!Array.isArray(data)) {
+        return [];
+    }
+
+    return data.map((item, index) => {
+        const row = {
+            ...item,
+
+            id:
+                item.id ||
+                item.TMSDespatchIncomeExpenseId ||
+                item.TMSDespatchesId ||
+                `row-${index}`,
+
+            Tipi:
+                item.Tipi ||
+                item.Type ||
+                "-",
+
+            TMSDespatchesId:
+                item.TMSDespatchesId ||
+                `despatch-${index}`,
+
+            TMSDespatchIncomeExpenseId:
+                item.TMSDespatchIncomeExpenseId ||
+                null,
+
+            TMSDespatchesDocumentNo:
+                item.TMSDespatchesDocumentNo ||
+                item.DocumentNo ||
+                "-",
+
+            TMSDespatchesDespatchDate:
+                item.TMSDespatchesDespatchDate ||
+                null,
+
+            SupplierName:
+                item.SupplierName ||
+                "-",
+
+            CurrentAccountsName:
+                item.CurrentAccountsName ||
+                "-",
+
+            ServiceExpense:
+                item.ServiceExpense ||
+                "-",
+
+            ServiceExpenseName:
+                item.ServiceExpenseName ||
+                "-",
+
+            PlateNumber:
+                item.PlateNumber ||
+                "-",
+
+            SubServiceName:
+                item.SubServiceName ||
+                "-",
+
+            ProjectName:
+                item.ProjectName ||
+                "PROJESİZ",
+
+            GivenVehicleTypeName:
+                item.GivenVehicleTypeName ||
+                "-",
+
+            VehicleWorkingTypeId:
+                item.VehicleWorkingTypeId ||
+                "-",
+
+            VehicleMasterGroupName:
+                item.VehicleMasterGroupName ||
+                "-",
+
+            SpecialGroupName:
+                item.SpecialGroupName ||
+                "-",
+
+            ServiceIncome:
+                parseNumber(item.ServiceIncome),
+
+            CostIncome:
+                parseNumber(item.CostIncome),
+
+            SalesInvoceIncome:
+                parseNumber(item.SalesInvoceIncome),
+
+            SalesOrderIncome:
+                parseNumber(item.SalesOrderIncome),
+
+            ServiceExpenses:
+                parseNumber(item.ServiceExpenses),
+
+            CostExpenses:
+                parseNumber(item.CostExpenses),
+
+            PurchaseInvoiceIncome:
+                parseNumber(item.PurchaseInvoiceIncome),
+
+            PurchaseOrderRevenue:
+                parseNumber(item.PurchaseOrderRevenue),
+
+            CreatedByName:
+                item.CreatedByName ||
+                "-",
+
+            CreatedDate:
+                item.CreatedDate ||
+                null,
+        };
+
+        row.incomeTotal = getRowIncome(row);
+        row.expenseTotal = getRowExpense(row);
+        row.profit = row.incomeTotal - row.expenseTotal;
+
+        return row;
+    });
 }
 
 export function aggregateByProject(rows) {
@@ -115,8 +243,9 @@ export function aggregateByProject(rows) {
         }
 
         const item = map.get(key);
-        item.purchaseTotal += r.PurchaseInvoiceIncome;
-        item.salesTotal += r.SalesInvoceIncome;
+
+        item.purchaseTotal += Number(r.expenseTotal || 0);
+        item.salesTotal += Number(r.incomeTotal || 0);
         item.profit = item.salesTotal - item.purchaseTotal;
         item.details.push(r);
     });
@@ -124,7 +253,12 @@ export function aggregateByProject(rows) {
     return [...map.values()]
         .map((item) => ({
             ...item,
-            plateCount: new Set(item.details.map((x) => x.PlateNumber || "-")).size,
+
+            plateCount: new Set(
+                item.details.map(
+                    (x) => x.PlateNumber || "-"
+                )
+            ).size,
         }))
         .sort((a, b) => b.profit - a.profit);
 }
@@ -147,19 +281,26 @@ export function aggregatePlateSummary(rows) {
         }
 
         const item = map.get(key);
-        item.p += r.PurchaseInvoiceIncome;
-        item.s += r.SalesInvoceIncome;
+
+        item.p += Number(r.expenseTotal || 0);
+        item.s += Number(r.incomeTotal || 0);
         item.rows += 1;
 
-        if (r.ProjectName) item.projects.add(r.ProjectName);
-        if (r.ServiceExpenseName && r.ServiceExpenseName !== "-") {
+        if (r.ProjectName) {
+            item.projects.add(r.ProjectName);
+        }
+
+        if (
+            r.ServiceExpenseName &&
+            r.ServiceExpenseName !== "-"
+        ) {
             item.services.add(r.ServiceExpenseName);
         }
     });
 
-    return [...map.values()].map((x) => ({
-        ...x,
-        profit: x.s - x.p,
+    return [...map.values()].map((item) => ({
+        ...item,
+        profit: item.s - item.p,
     }));
 }
 
@@ -179,13 +320,14 @@ export function aggregateServiceSummary(rows) {
         }
 
         const item = map.get(key);
-        item.p += r.PurchaseInvoiceIncome;
-        item.s += r.SalesInvoceIncome;
+
+        item.p += Number(r.expenseTotal || 0);
+        item.s += Number(r.incomeTotal || 0);
         item.count += 1;
     });
 
-    return [...map.values()].map((x) => ({
-        ...x,
-        profit: x.s - x.p,
+    return [...map.values()].map((item) => ({
+        ...item,
+        profit: item.s - item.p,
     }));
 }
